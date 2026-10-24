@@ -43,6 +43,7 @@
 }
 
 .card .primary { margin-top: 24rpx; }
+.wechat-login { width: 100%; margin-top: 18rpx; }
 .logout { width: 100%; margin-top: 20rpx; }
 
 .mock-row {

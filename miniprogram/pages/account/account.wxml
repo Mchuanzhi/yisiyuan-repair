@@ -8,16 +8,18 @@
   <view class="card">
     <text class="card-title">开具收据权限</text>
     <text class="permission">{{permission}}</text>
-    <text class="muted">由管理员创建师傅账号并开通权限。微信官方登录留到后续任务，这里使用内部账号。</text>
+    <text class="muted">{{wechatLine}}</text>
   </view>
 
   <view class="card" hidden="{{loggedIn}}">
-    <text class="card-title">内部人员登录</text>
+    <text class="card-title">师傅登录</text>
+    <text class="muted">首次使用请用已有手机号和密码绑定微信。之后优先微信登录。微信登录不会自动开通开据权限。</text>
+    <button wx:if="{{!useMock}}" class="secondary wechat-login" disabled="{{loggingIn}}" bindtap="onWechat">微信登录</button>
     <text class="label">手机号</text>
     <input class="input" type="number" maxlength="11" value="{{mobile}}" bindinput="onMobile" />
     <text class="label">密码</text>
     <input class="input" password value="{{password}}" bindinput="onPassword" />
-    <button class="primary" disabled="{{loggingIn}}" bindtap="onLogin">登录</button>
+    <button class="primary" disabled="{{loggingIn}}" bindtap="onLogin">{{loginLabel}}</button>
   </view>
 
   <button wx:if="{{loggedIn}}" class="secondary logout" bindtap="onLogout">退出登录</button>

@@ -1,5 +1,5 @@
 {
-  "description": "壹思源维修报价小程序。用微信开发者工具导入本目录。",
+  "description": "壹思源维修报价小程序。用微信开发者工具导入本目录。appid 是占位符 wxXXXXXXXXXXXXXXXX，注册完成后改成你的 AppID，并同步 config.js。",
   "packOptions": {
     "ignore": [
       { "type": "folder", "value": "tests" },
@@ -26,7 +26,7 @@
   },
   "compileType": "miniprogram",
   "libVersion": "3.6.5",
-  "appid": "touristappid",
+  "appid": "wxXXXXXXXXXXXXXXXX",
   "projectname": "yisiyuan-repair",
   "condition": {},
   "editorSetting": {

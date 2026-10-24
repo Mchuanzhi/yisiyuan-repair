@@ -34,6 +34,10 @@ Page({
   },
 
   load() {
+    return api.whenSessionReady().then(() => this.showReceipts());
+  },
+
+  showReceipts() {
     const user = getApp().globalData.user;
     if (!user) {
       this.receipts = [];

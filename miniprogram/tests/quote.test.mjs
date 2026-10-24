@@ -36,7 +36,17 @@ function assertStructure() {
   const project = JSON.parse(read("project.config.json"));
   assert.equal(project.compileType, "miniprogram");
   assert.equal(project.setting.urlCheck, false);
-  assert.equal(project.appid, "touristappid");
+  assert.equal(project.appid, "wxXXXXXXXXXXXXXXXX");
+  assert.equal(project.appid.includes("touristappid"), false);
+  assert.match(read("config.js"), /wechatAppId:\s*"wxXXXXXXXXXXXXXXXX"/);
+  assert.match(read("utils/api.js"), /wx\.login/);
+  assert.match(read("utils/api.js"), /\/api\/auth\/wechat-login/);
+  assert.match(read("utils/api.js"), /Authorization: "Bearer "/);
+  assert.match(read("pages/account/account.wxml"), /微信登录/);
+  assert.match(read("pages/account/account.js"), /绑定并登录/);
+  assert.match(read("README.md"), /合法域名/);
+  assert.match(read("README.md"), /WECHAT_APP_SECRET/);
+  assert.match(read("README.md"), /project\.config\.json/);
   assert.deepEqual(app.tabBar.list.map((item) => item.pagePath), ["pages/quote/quote", "pages/history/history"]);
   assert.deepEqual(app.tabBar.list.map((item) => item.text), ["查价报价", "历史报价"]);
   for (const page of ["pages/quote/quote", "pages/history/history", "pages/signature/signature", "pages/receipt/receipt", "pages/account/account"]) {
