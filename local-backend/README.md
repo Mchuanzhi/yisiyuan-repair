@@ -2,6 +2,10 @@
 
 这是第一版本地后端，用于在服务器部署前验证核心业务流程。
 
+## 微信小程序
+
+`miniprogram/` 默认请求 `http://127.0.0.1:8787` 的 `/api/catalog` 和 `/api/quotes/calculate`。打开方式和真机地址见 `miniprogram/README.md`。
+
 ## 本地启动
 
 需要 Node.js 24 或以上版本。

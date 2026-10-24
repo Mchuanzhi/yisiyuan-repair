@@ -1,0 +1,48 @@
+.page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #eaf6ff, #f4f4fa 220rpx);
+}
+
+.scroll {
+  flex: 1;
+  height: 0;
+  min-height: 0;
+  padding: 24rpx 38rpx 32rpx;
+  box-sizing: border-box;
+}
+
+.head { margin-bottom: 20rpx; }
+.count { display: block; font-size: 33rpx; font-weight: 750; }
+.muted { display: block; margin-top: 8rpx; color: #777f96; font-size: 23rpx; }
+
+.card {
+  margin-bottom: 20rpx;
+  padding: 28rpx;
+  border-radius: 36rpx;
+  background: #fff;
+  box-shadow: 0 16rpx 40rpx rgba(72, 80, 151, 0.08);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 6rpx 0;
+  line-height: 1.6;
+}
+
+.name, .amount { font-weight: 700; }
+.amount { color: #405ce2; }
+.time, .service, .no, .status { color: #4d5874; font-size: 24rpx; }
+.service { flex: 1; }
+
+.empty {
+  padding: 48rpx 12rpx;
+  color: #777f96;
+  font-size: 26rpx;
+  line-height: 1.7;
+}
+
+.login { margin-top: 28rpx; }

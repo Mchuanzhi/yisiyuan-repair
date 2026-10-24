@@ -1,0 +1,222 @@
+const model = require("./model");
+
+function runtime() {
+  return getApp().globalData;
+}
+
+function request(path, options) {
+  const settings = options || {};
+  const state = runtime();
+  const base = String(state.apiBase || "").replace(/\/$/, "");
+  return new Promise((resolve, reject) => {
+    wx.request({
+      url: base + path,
+      method: settings.method || "GET",
+      data: settings.data,
+      timeout: 15000,
+      header: Object.assign(
+        { "Content-Type": "application/json" },
+        state.token ? { Authorization: "Bearer " + state.token } : {},
+      ),
+      success(res) {
+        const body = res.data && typeof res.data === "object" ? res.data : {};
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(body);
+          return;
+        }
+        const error = new Error(body.message || "请求失败，请稍后重试");
+        error.status = res.statusCode;
+        error.code = body.error;
+        reject(error);
+      },
+      fail(err) {
+        const error = new Error((err && err.errMsg) || "网络异常，请确认 local-backend 已启动");
+        error.status = 0;
+        reject(error);
+      },
+    });
+  });
+}
+
+function saveSession(token, user) {
+  const state = runtime();
+  state.token = token || "";
+  state.user = user || null;
+  wx.setStorageSync("staffToken", state.token);
+  wx.setStorageSync("staffUser", state.user);
+}
+
+function clearSession() {
+  saveSession("", null);
+}
+
+function getCatalog() {
+  if (runtime().useMock) return Promise.resolve(model.normalizeCatalog(model.publicCatalog()));
+  return request("/api/catalog").then((data) => model.normalizeCatalog(data));
+}
+
+function calculate(input) {
+  if (runtime().useMock) {
+    try {
+      return Promise.resolve(model.calculateMock(input));
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+  return request("/api/quotes/calculate", { method: "POST", data: input });
+}
+
+function health() {
+  if (runtime().useMock) return Promise.resolve({ ok: true, mock: true });
+  return request("/api/health");
+}
+
+function staffLogin(mobile, password) {
+  if (runtime().useMock) {
+    try {
+      const result = model.mockLogin(mobile, password);
+      saveSession(result.token, result.user);
+      return Promise.resolve(result);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+  return request("/api/auth/staff-login", {
+    method: "POST",
+    data: { mobile: String(mobile || "").trim(), password },
+  }).then((result) => {
+    saveSession(result.token, result.user);
+    return result;
+  });
+}
+
+function staffLogout() {
+  const finish = () => {
+    clearSession();
+    return { ok: true };
+  };
+  if (runtime().useMock || !runtime().token) return Promise.resolve(finish());
+  return request("/api/auth/logout", { method: "POST" }).then(finish, finish);
+}
+
+function refreshMe() {
+  if (runtime().useMock) return Promise.resolve(runtime().user);
+  if (!runtime().token) {
+    clearSession();
+    return Promise.resolve(null);
+  }
+  return request("/api/auth/me").then((data) => {
+    saveSession(runtime().token, data.user);
+    return data.user;
+  }).catch((error) => {
+    if (error.status === 401) clearSession();
+    throw error;
+  });
+}
+
+function createReceipt(body) {
+  if (runtime().useMock) {
+    try {
+      return Promise.resolve({ receipt: mockReceipt(body) });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+  return request("/api/staff/receipts", { method: "POST", data: body });
+}
+
+function listReceipts() {
+  if (runtime().useMock) {
+    const user = runtime().user;
+    if (!user) return Promise.resolve({ receipts: [] });
+    const all = wx.getStorageSync("mockReceipts") || [];
+    return Promise.resolve({ receipts: all.filter((item) => item.createdByStaffId === user.id) });
+  }
+  return request("/api/staff/receipts");
+}
+
+function saveSettings(apiBase, useMock) {
+  const state = runtime();
+  const nextBase = String(apiBase || "").trim().replace(/\/$/, "");
+  const nextMock = Boolean(useMock);
+  const modeChanged = state.useMock !== nextMock;
+  state.apiBase = nextBase || state.apiBase;
+  state.useMock = nextMock;
+  wx.setStorageSync("apiBase", state.apiBase);
+  wx.setStorageSync("useMock", nextMock);
+  state.catalogDirty = true;
+  if (modeChanged) clearSession();
+  return { apiBase: state.apiBase, useMock: nextMock };
+}
+
+function mockReceipt(body) {
+  const user = runtime().user;
+  if (!user || !user.canIssueReceipts) {
+    throw Object.assign(new Error("该师傅账号尚未获得开具收据权限，请联系管理员"), { status: 403 });
+  }
+  if (!String(body.customerName || "").trim()) throw Object.assign(new Error("请填写客户姓名"), { status: 400 });
+  if (!body.signatureDataUrl) throw Object.assign(new Error("请先完成客户签名"), { status: 400 });
+  const quote = model.calculateMock(body);
+  if (body.expectedTotal !== undefined && body.expectedTotal !== quote.total) {
+    throw Object.assign(new Error("报价已变更，请返回重新确认并签名"), { status: 409 });
+  }
+  const now = new Date();
+  const pad = (value) => (value < 10 ? "0" : "") + value;
+  const repairTime = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate()) + " " + pad(now.getHours()) + ":" + pad(now.getMinutes());
+  const expire = new Date(now);
+  expire.setDate(expire.getDate() + Number(body.warrantyDays || 0));
+  const expireText = expire.getFullYear() + "-" + pad(expire.getMonth() + 1) + "-" + pad(expire.getDate());
+  const no = "YSY" + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + String(now.getTime()).slice(-5);
+  const receipt = {
+    no,
+    createdByStaffId: user.id,
+    customerName: String(body.customerName).trim(),
+    serviceName: quote.services.map((service) => service.name).join("、"),
+    brandName: quote.brand.name,
+    cityName: quote.city.name,
+    repairTime,
+    warrantyDays: Number(body.warrantyDays || 0),
+    warrantyExpireDate: expireText,
+    amount: quote.total,
+    lines: quote.rows,
+    includes: "",
+    excludes: "",
+    signatureDataUrl: body.signatureDataUrl,
+    voided: false,
+  };
+  const all = wx.getStorageSync("mockReceipts") || [];
+  all.unshift(receipt);
+  wx.setStorageSync("mockReceipts", all.slice(0, 50));
+  return receipt;
+}
+
+function writeSignatureFile(dataUrl) {
+  const matched = String(dataUrl || "").match(/^data:image\/\w+;base64,(.+)$/);
+  if (!matched || !wx.env || !wx.env.USER_DATA_PATH) return Promise.resolve("");
+  const filePath = wx.env.USER_DATA_PATH + "/sig-" + Date.now() + ".png";
+  return new Promise((resolve) => {
+    wx.getFileSystemManager().writeFile({
+      filePath,
+      data: matched[1],
+      encoding: "base64",
+      success: () => resolve(filePath),
+      fail: () => resolve(""),
+    });
+  });
+}
+
+module.exports = {
+  request,
+  saveSession,
+  clearSession,
+  getCatalog,
+  calculate,
+  health,
+  staffLogin,
+  staffLogout,
+  refreshMe,
+  createReceipt,
+  listReceipts,
+  saveSettings,
+  writeSignatureFile,
+};
