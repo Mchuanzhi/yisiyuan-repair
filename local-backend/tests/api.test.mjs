@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createServer } from "../src/server.mjs";
+import { DatabaseSync } from "node:sqlite";
+import { createServer, parseEnvText } from "../src/server.mjs";
 
 const dbFile = path.join(os.tmpdir(), "yisiyuan-repair-test-db.sqlite");
 
@@ -383,10 +384,269 @@ async function main() {
     const loggedOutAdmin = await request(baseUrl, "GET", "/admin/", { cookie: logout.headers.get("set-cookie"), redirect: "manual" });
     assert.equal(loggedOutAdmin.status, 302);
 
+    await wechatAuthTests();
     console.log("All local backend API tests passed");
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await removeTestDb();
+  }
+}
+
+async function listen(server) {
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return `http://127.0.0.1:${server.address().port}`;
+}
+
+async function removeDb(dbFile) {
+  await Promise.all([dbFile, `${dbFile}-wal`, `${dbFile}-shm`].map((file) => fs.rm(file, { force: true })));
+}
+
+async function withEnv(values, action) {
+  const previous = new Map();
+  for (const key of Object.keys(values)) {
+    previous.set(key, process.env[key]);
+    if (values[key] === undefined) delete process.env[key];
+    else process.env[key] = values[key];
+  }
+  try {
+    return await action();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+function mockExchange(code) {
+  if (code === "bad") {
+    const error = new Error("invalid code");
+    error.status = 401;
+    error.code = "wechat_code_invalid";
+    throw error;
+  }
+  const table = {
+    "code-tech": { openid: "openid-tech", unionid: "union-tech", sessionKey: "sk-should-not-leak" },
+    "code-tech-2": { openid: "openid-tech", unionid: "union-tech", sessionKey: "sk-should-not-leak" },
+    "code-other": { openid: "openid-other", sessionKey: "sk-other" },
+  };
+  const found = table[code];
+  if (!found) {
+    const error = new Error("invalid code");
+    error.status = 401;
+    error.code = "wechat_code_invalid";
+    throw error;
+  }
+  return found;
+}
+
+async function wechatAuthTests() {
+  const beforeSecret = process.env.WECHAT_APP_SECRET;
+  const parsed = parseEnvText("# comment\nWECHAT_APP_SECRET=\"do-not-leak\"\nWECHAT_APPID=wx0123456789abcdef\n=bad\n");
+  assert.equal(parsed.WECHAT_APP_SECRET, "do-not-leak");
+  assert.equal(parsed.WECHAT_APPID, "wx0123456789abcdef");
+  assert.equal(process.env.WECHAT_APP_SECRET, beforeSecret);
+
+  const plainFile = path.join(os.tmpdir(), `yisiyuan-wechat-plain-${process.pid}.sqlite`);
+  await removeDb(plainFile);
+  const plain = createServer({ dbFile: plainFile });
+  const plainUrl = await listen(plain);
+  const originalFetch = globalThis.fetch;
+  let fetchCalled = false;
+  let secretInUrl = false;
+  globalThis.fetch = async (url, options) => {
+    const target = String(url);
+    if (target.includes("jscode2session")) {
+      fetchCalled = true;
+      secretInUrl = target.includes("super-secret-value");
+      throw new Error("jscode2session should not be called");
+    }
+    return originalFetch(url, options);
+  };
+  try {
+    await withEnv({ WECHAT_APPID: undefined, WECHAT_APP_SECRET: undefined }, async () => {
+      const missing = await request(plainUrl, "POST", "/api/auth/wechat-login", { body: { code: "anything" } });
+      assert.equal(missing.status, 503);
+      assert.equal(missing.payload.error, "wechat_not_configured");
+      assert.equal(missing.payload.token, undefined);
+      const health = await request(plainUrl, "GET", "/api/health");
+      assert.equal(health.payload.wechatLogin, "not_configured");
+    });
+    await withEnv({ WECHAT_APPID: "wxXXXXXXXXXXXXXXXX", WECHAT_APP_SECRET: "super-secret-value" }, async () => {
+      const placeholder = await request(plainUrl, "POST", "/api/auth/wechat-login", { body: { code: "anything" } });
+      assert.equal(placeholder.status, 503);
+      assert.equal(placeholder.payload.error, "wechat_not_configured");
+      assert.equal(JSON.stringify(placeholder.payload).includes("super-secret-value"), false);
+    });
+    await withEnv({ WECHAT_APPID: "wx0123456789abcdef", WECHAT_APP_SECRET: undefined }, async () => {
+      const noSecret = await request(plainUrl, "POST", "/api/auth/wechat-login", { body: { code: "anything" } });
+      assert.equal(noSecret.status, 503);
+    });
+    assert.equal(fetchCalled, false);
+    await withEnv({ WECHAT_APPID: "wx0123456789abcdef", WECHAT_APP_SECRET: "super-secret-value" }, async () => {
+      const health = await request(plainUrl, "GET", "/api/health");
+      assert.equal(health.payload.wechatLogin, "configured");
+      assert.equal(JSON.stringify(health.payload).includes("super-secret-value"), false);
+      assert.equal(JSON.stringify(health.payload).includes("wx0123456789abcdef"), false);
+      const attempted = await request(plainUrl, "POST", "/api/auth/wechat-login", { body: { code: "anything" } });
+      assert.equal(attempted.status, 502);
+      assert.equal(attempted.payload.error, "wechat_unreachable");
+      assert.equal(JSON.stringify(attempted.payload).includes("super-secret-value"), false);
+    });
+    assert.equal(fetchCalled, true);
+    assert.equal(secretInUrl, true);
+    const stillPassword = await request(plainUrl, "POST", "/api/auth/staff-login", {
+      body: { mobile: "18800000002", password: "123456" },
+    });
+    assert.equal(stillPassword.status, 200);
+    assert.equal(stillPassword.payload.user.canIssueReceipts, false);
+    assert.equal(stillPassword.payload.user.wechatBound, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await new Promise((resolve) => plain.close(resolve));
+    await removeDb(plainFile);
+  }
+
+  const dbFile = path.join(os.tmpdir(), `yisiyuan-wechat-${process.pid}.sqlite`);
+  await removeDb(dbFile);
+  let active = createServer({ dbFile, exchangeWechatCode: mockExchange });
+  let baseUrl = await listen(active);
+  const receiptBody = {
+    customerName: "微信开据",
+    serviceId: "air-capacitor",
+    brandId: "gree",
+    cityId: "shanghai",
+    signatureDataUrl: "data:image/png;base64,dGVzdA==",
+  };
+  try {
+    assert.equal((await request(baseUrl, "POST", "/api/auth/wechat-login", { body: {} })).status, 400);
+    assert.equal((await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "bad" } })).status, 401);
+
+    const unbound = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "code-tech" } });
+    const sameOpenid = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "code-tech-2" } });
+    assert.equal(unbound.status, 200);
+    assert.equal(unbound.payload.bound, false);
+    assert.equal(sameOpenid.payload.bound, false);
+    assert.equal(unbound.payload.token, undefined);
+    const unboundText = JSON.stringify(unbound.payload);
+    assert.equal(unboundText.includes("openid-tech"), false);
+    assert.equal(unboundText.includes("sk-should-not-leak"), false);
+    assert.equal(unboundText.includes("session_key"), false);
+    assert.equal(unboundText.includes("sessionKey"), false);
+    assert.equal((await request(baseUrl, "POST", "/api/staff/receipts", { body: receiptBody })).status, 401);
+
+    const wrong = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: unbound.payload.bindTicket, mobile: "18800000002", password: "wrong-pass" },
+    });
+    assert.equal(wrong.status, 401);
+    assert.equal((await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "code-other" } })).payload.bound, false);
+
+    const bound = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: unbound.payload.bindTicket, mobile: " 18800000002 ", password: "123456" },
+    });
+    assert.equal(bound.status, 200);
+    assert.equal(bound.payload.bound, true);
+    assert.equal(bound.payload.user.id, "staff_tech");
+    assert.equal(bound.payload.user.role, "technician");
+    assert.equal(bound.payload.user.canIssueReceipts, false);
+    assert.equal(bound.payload.user.wechatBound, true);
+    assert.equal(JSON.stringify(bound.payload).includes("openid-tech"), false);
+    assert.equal(JSON.stringify(bound.payload).includes("sk-should-not-leak"), false);
+    const token = bound.payload.token;
+    assert.match(bound.headers.get("set-cookie") || "", /ysy_staff_token=/);
+    assert.equal((await request(baseUrl, "POST", "/api/staff/receipts", { token, body: receiptBody })).status, 403);
+    assert.equal((await request(baseUrl, "GET", "/api/customer/receipts", { token })).status, 401);
+
+    const stolen = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: sameOpenid.payload.bindTicket, mobile: "18800000003", password: "123456" },
+    });
+    assert.equal(stolen.status, 409);
+    assert.equal(stolen.payload.error, "wechat_already_bound");
+
+    const database = new DatabaseSync(dbFile);
+    try {
+      const row = database.prepare("SELECT wechat_openid, wechat_unionid, can_issue_receipts, password FROM staff_users WHERE id = ?").get("staff_tech");
+      assert.equal(row.wechat_openid, "openid-tech");
+      assert.equal(row.wechat_unionid, "union-tech");
+      assert.equal(Number(row.can_issue_receipts), 0);
+      assert.equal(row.password, "123456");
+      const columns = database.prepare("PRAGMA table_info(staff_users)").all().map((column) => column.name);
+      assert.equal(columns.includes("session_key"), false);
+    } finally {
+      database.close();
+    }
+    const raw = await fs.readFile(dbFile);
+    assert.equal(raw.includes("sk-should-not-leak"), false);
+
+    await new Promise((resolve) => active.close(resolve));
+    active = createServer({ dbFile, exchangeWechatCode: mockExchange });
+    baseUrl = await listen(active);
+    const again = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "code-tech" } });
+    assert.equal(again.status, 200);
+    assert.equal(again.payload.bound, true);
+    assert.equal(again.payload.user.canIssueReceipts, false);
+    assert.equal((await request(baseUrl, "POST", "/api/staff/receipts", { token: again.payload.token, body: receiptBody })).status, 403);
+
+    const admin = await request(baseUrl, "POST", "/api/auth/staff-login", { body: { mobile: "18800000001", password: "123456" } });
+    assert.equal((await request(baseUrl, "PATCH", "/api/admin/staff/staff_tech/receipt-permission", {
+      token: admin.payload.token,
+      body: { canIssueReceipts: true },
+    })).status, 200);
+    const me = await request(baseUrl, "GET", "/api/auth/me", { token: again.payload.token });
+    assert.equal(me.payload.user.canIssueReceipts, true);
+    assert.equal(me.payload.user.wechatBound, true);
+    const created = await request(baseUrl, "POST", "/api/staff/receipts", { token: again.payload.token, body: receiptBody });
+    assert.equal(created.status, 201);
+    const history = await request(baseUrl, "GET", "/api/staff/receipts", { token: again.payload.token });
+    assert.equal(history.payload.receipts.some((item) => item.no === created.payload.receipt.no), true);
+
+    const permissions = await request(baseUrl, "GET", "/api/admin/permissions", { token: admin.payload.token });
+    const tech = permissions.payload.staffUsers.find((item) => item.id === "staff_tech");
+    assert.equal(tech.wechatBound, true);
+    assert.equal(tech.wechatOpenid, undefined);
+    assert.equal(JSON.stringify(permissions.payload).includes("openid-tech"), false);
+
+    const other = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "code-other" } });
+    assert.equal(other.payload.bound, false);
+    const otherOnTech = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: other.payload.bindTicket, mobile: "18800000002", password: "123456" },
+    });
+    assert.equal(otherOnTech.status, 409);
+    assert.equal(otherOnTech.payload.error, "staff_already_bound");
+    const support = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: other.payload.bindTicket, mobile: "18800000003", password: "123456" },
+    });
+    assert.equal(support.status, 200);
+    assert.equal(support.payload.user.canIssueReceipts, false);
+    assert.equal((await request(baseUrl, "POST", "/api/staff/receipts", { token: support.payload.token, body: receiptBody })).status, 403);
+
+    assert.equal((await request(baseUrl, "PATCH", "/api/admin/staff/staff_tech", {
+      token: admin.payload.token,
+      body: { enabled: false },
+    })).status, 200);
+    const disabled = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "code-tech" } });
+    assert.equal(disabled.status, 403);
+    assert.equal(disabled.payload.error, "staff_disabled");
+  } finally {
+    await new Promise((resolve) => active.close(resolve));
+    await removeDb(dbFile);
+  }
+
+  const shortFile = path.join(os.tmpdir(), `yisiyuan-wechat-short-${process.pid}.sqlite`);
+  await removeDb(shortFile);
+  const short = createServer({ dbFile: shortFile, exchangeWechatCode: mockExchange, bindTicketTtlMs: -1 });
+  const shortUrl = await listen(short);
+  try {
+    const ticket = await request(shortUrl, "POST", "/api/auth/wechat-login", { body: { code: "code-other" } });
+    assert.equal(ticket.payload.bound, false);
+    const expired = await request(shortUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: ticket.payload.bindTicket, mobile: "18800000003", password: "123456" },
+    });
+    assert.equal(expired.status, 401);
+    assert.equal(expired.payload.error, "bind_ticket_invalid");
+  } finally {
+    await new Promise((resolve) => short.close(resolve));
+    await removeDb(shortFile);
   }
 }
 

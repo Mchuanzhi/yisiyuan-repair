@@ -47,7 +47,113 @@ function saveSession(token, user) {
 }
 
 function clearSession() {
+  const state = runtime();
+  state.bindTicket = "";
   saveSession("", null);
+}
+
+function wxLoginCode() {
+  return new Promise((resolve, reject) => {
+    if (typeof wx === "undefined" || !wx.login) {
+      reject(Object.assign(new Error("当前环境不能调用微信登录，请使用手机号和密码"), { status: 0, code: "wx_login_unavailable" }));
+      return;
+    }
+    wx.login({
+      timeout: 10000,
+      success(res) {
+        if (!res || !res.code) {
+          reject(Object.assign(new Error("微信登录未返回 code，请改用手机号和密码"), { status: 0, code: "wx_login_failed" }));
+          return;
+        }
+        resolve(res.code);
+      },
+      fail(err) {
+        const detail = err && err.errMsg ? "（" + err.errMsg + "）" : "";
+        reject(Object.assign(new Error("微信登录不可用，请先在 project.config.json 和 config.js 填写 AppID，或改用手机号密码登录" + detail), { status: 0, code: "wx_login_failed" }));
+      },
+    });
+  });
+}
+
+function enterWithWechat(options) {
+  const force = Boolean(options && options.force);
+  const state = runtime();
+  if (state.useMock) return Promise.resolve({ bound: false, mock: true });
+  if (!force && state.skipWechatAuto) return Promise.resolve({ bound: false, skipped: true });
+  if (!force && state.token) {
+    return refreshMe().then((user) => ({ bound: Boolean(user), user })).catch((error) => {
+      if (error && error.status === 401) return enterWithWechat({ force: true });
+      throw error;
+    });
+  }
+  state.skipWechatAuto = false;
+  return wxLoginCode().then((code) => request("/api/auth/wechat-login", {
+    method: "POST",
+    data: { code },
+  })).then((result) => {
+    state.wechatHint = "";
+    state.wechatErrorCode = "";
+    if (result.bound && result.token) {
+      saveSession(result.token, result.user);
+      state.bindTicket = "";
+    } else {
+      state.bindTicket = result.bindTicket || "";
+      if (!result.bound) state.wechatHint = result.message || "";
+    }
+    return result;
+  }).catch((error) => {
+    state.wechatErrorCode = error.code || "";
+    state.wechatHint = error.message || "微信登录失败，请使用手机号和密码";
+    throw error;
+  });
+}
+
+function wechatBind(bindTicket, mobile, password) {
+  return request("/api/auth/wechat-bind", {
+    method: "POST",
+    data: {
+      bindTicket,
+      mobile: String(mobile || "").trim(),
+      password,
+    },
+  }).then((result) => {
+    const state = runtime();
+    saveSession(result.token, result.user);
+    state.bindTicket = "";
+    state.wechatHint = "";
+    state.wechatErrorCode = "";
+    state.skipWechatAuto = false;
+    return result;
+  });
+}
+
+function bootstrapSession() {
+  const state = runtime();
+  if (state.sessionPromise) return state.sessionPromise;
+  const run = () => {
+    if (state.useMock || state.skipWechatAuto) return Promise.resolve(state.user || null);
+    if (state.token) {
+      return refreshMe().catch((error) => {
+        if (error && error.status === 401) return enterWithWechat().then((result) => (result && result.user) || null);
+        throw error;
+      });
+    }
+    return enterWithWechat().then((result) => (result && result.user) || null).catch(() => null);
+  };
+  state.sessionPromise = run().finally(() => {
+    state.sessionPromise = null;
+  });
+  return state.sessionPromise;
+}
+
+function whenSessionReady() {
+  try {
+    const ready = runtime().sessionReady;
+    if (!ready || typeof ready.then !== "function") return Promise.resolve();
+    return ready.then(() => undefined, () => undefined);
+  } catch (error) {
+    return Promise.resolve();
+  }
 }
 
 function getCatalog() {
@@ -93,6 +199,7 @@ function staffLogin(mobile, password) {
 function staffLogout() {
   const finish = () => {
     clearSession();
+    runtime().skipWechatAuto = true;
     return { ok: true };
   };
   if (runtime().useMock || !runtime().token) return Promise.resolve(finish());
@@ -145,7 +252,11 @@ function saveSettings(apiBase, useMock) {
   wx.setStorageSync("apiBase", state.apiBase);
   wx.setStorageSync("useMock", nextMock);
   state.catalogDirty = true;
-  if (modeChanged) clearSession();
+  if (modeChanged) {
+    clearSession();
+    state.skipWechatAuto = false;
+    state.sessionReady = bootstrapSession().catch(() => null);
+  }
   return { apiBase: state.apiBase, useMock: nextMock };
 }
 
@@ -215,6 +326,10 @@ module.exports = {
   staffLogin,
   staffLogout,
   refreshMe,
+  enterWithWechat,
+  wechatBind,
+  bootstrapSession,
+  whenSessionReady,
   createReceipt,
   listReceipts,
   saveSettings,

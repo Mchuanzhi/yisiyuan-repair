@@ -48,11 +48,15 @@ Page({
 
   onShow() {
     this.applyLayout();
-    try {
-      this.syncAccount();
-    } catch (error) {
-      this.setData({ confirmText: "登录后签名开据" });
-    }
+    const sync = () => {
+      try {
+        this.syncAccount();
+      } catch (error) {
+        this.setData({ confirmText: "登录后签名开据" });
+      }
+    };
+    sync();
+    api.whenSessionReady().then(sync);
     let dirty = false;
     try {
       dirty = !this.catalog || getApp().globalData.catalogDirty;

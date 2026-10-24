@@ -6,6 +6,11 @@ App({
     useMock: false,
     token: "",
     user: null,
+    bindTicket: "",
+    wechatHint: "",
+    wechatErrorCode: "",
+    skipWechatAuto: false,
+    sessionReady: null,
     catalogDirty: false,
     quoteDraft: null,
     lastReceipt: null,
@@ -17,5 +22,7 @@ App({
     this.globalData.useMock = storedMock === true;
     this.globalData.token = wx.getStorageSync("staffToken") || "";
     this.globalData.user = wx.getStorageSync("staffUser") || null;
+    const api = require("./utils/api");
+    this.globalData.sessionReady = api.bootstrapSession().catch(() => null);
   },
 });

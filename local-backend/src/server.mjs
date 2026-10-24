@@ -1,5 +1,6 @@
 import http from "node:http";
 import fs from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -13,6 +14,9 @@ const ADMIN_WEB_DIR = path.join(WORKSPACE_DIR, "admin-web");
 const MINIAPP_UI_DIR = path.join(WORKSPACE_DIR, "miniapp-ui");
 const DEFAULT_DB_FILE = path.join(ROOT_DIR, "data", "yisiyuan-repair.sqlite");
 const STAFF_COOKIE_NAME = "ysy_staff_token";
+const WECHAT_APPID_PLACEHOLDER = "wxXXXXXXXXXXXXXXXX";
+const WECHAT_JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session";
+const DEFAULT_BIND_TICKET_TTL_MS = 10 * 60 * 1000;
 
 const seedData = {
   staffUsers: [
@@ -312,6 +316,13 @@ function createSchema(database) {
     );
   `);
   ensureColumn(database, "staff_users", "can_issue_receipts", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(database, "staff_users", "wechat_openid", "TEXT");
+  ensureColumn(database, "staff_users", "wechat_unionid", "TEXT");
+  database.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_users_wechat_openid
+    ON staff_users(wechat_openid)
+    WHERE wechat_openid IS NOT NULL AND wechat_openid != ''
+  `);
   ensureColumn(database, "cities", "rate", "TEXT");
   ensureColumn(database, "cities", "radius", "TEXT");
   ensureColumn(database, "extras", "price", "TEXT");
@@ -385,11 +396,23 @@ function writeDbRows(database, db) {
   database.prepare("DELETE FROM staff_users").run();
 
   const insertStaff = database.prepare(`
-    INSERT INTO staff_users (id, name, mobile, password, role, enabled, can_issue_receipts)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO staff_users (id, name, mobile, password, role, enabled, can_issue_receipts, wechat_openid, wechat_unionid)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (const user of db.staffUsers || []) {
-    insertStaff.run(user.id, user.name, user.mobile, user.password, user.role, boolToDb(user.enabled), boolToDb(user.canIssueReceipts === true));
+    const wechatOpenid = String(user.wechatOpenid || "").trim();
+    const wechatUnionid = String(user.wechatUnionid || "").trim();
+    insertStaff.run(
+      user.id,
+      user.name,
+      user.mobile,
+      user.password,
+      user.role,
+      boolToDb(user.enabled),
+      boolToDb(user.canIssueReceipts === true),
+      wechatOpenid || null,
+      wechatUnionid || null,
+    );
   }
 
   const insertCategory = database.prepare(`
@@ -570,6 +593,8 @@ function readDbRows(database) {
       canIssueReceipts: boolFromDb(row.can_issue_receipts),
       role: row.role,
       enabled: boolFromDb(row.enabled),
+      wechatOpenid: row.wechat_openid || "",
+      wechatUnionid: row.wechat_unionid || "",
     })),
     customers: database.prepare("SELECT * FROM customers ORDER BY rowid").all().map((row) => ({
       id: row.id,
@@ -991,7 +1016,112 @@ function canIssueReceipts(user) {
 }
 
 function staffView(user) {
-  return { id: user.id, name: user.name, role: user.role, canIssueReceipts: canIssueReceipts(user) };
+  return {
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    canIssueReceipts: canIssueReceipts(user),
+    wechatBound: Boolean(user.wechatOpenid),
+  };
+}
+
+function httpError(status, code, message) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  return error;
+}
+
+export function parseEnvText(text) {
+  const result = {};
+  for (const line of String(text || "").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) result[key] = value;
+  }
+  return result;
+}
+
+function loadLocalEnvFile() {
+  const file = path.join(ROOT_DIR, ".env");
+  try {
+    const parsed = parseEnvText(readFileSync(file, "utf8"));
+    for (const [key, value] of Object.entries(parsed)) {
+      if (process.env[key] === undefined) process.env[key] = value;
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
+
+function wechatSettings() {
+  const appid = String(process.env.WECHAT_APPID || "").trim();
+  const secret = String(process.env.WECHAT_APP_SECRET || "").trim();
+  const normalized = appid.toLowerCase();
+  const placeholder = normalized === WECHAT_APPID_PLACEHOLDER.toLowerCase() || normalized === "touristappid";
+  return { configured: Boolean(appid) && !placeholder && Boolean(secret) };
+}
+
+function assertWechatConfigured() {
+  if (!wechatSettings().configured) {
+    throw httpError(
+      503,
+      "wechat_not_configured",
+      "尚未配置微信登录。请在后端设置环境变量 WECHAT_APPID 和 WECHAT_APP_SECRET，并把同一个 AppID 写入小程序 project.config.json 与 config.js。当前仍可使用手机号和密码登录。",
+    );
+  }
+}
+
+function normalizeOpenId(openid) {
+  const value = String(openid || "").trim();
+  if (!value || value.length > 128 || /\s/.test(value)) {
+    throw httpError(502, "wechat_openid_missing", "微信未返回有效身份，请重试");
+  }
+  return value;
+}
+
+async function defaultExchangeWechatCode(code) {
+  assertWechatConfigured();
+  const appid = String(process.env.WECHAT_APPID).trim();
+  const secret = String(process.env.WECHAT_APP_SECRET).trim();
+  const url = new URL(WECHAT_JSCODE2SESSION_URL);
+  url.searchParams.set("appid", appid);
+  url.searchParams.set("secret", secret);
+  url.searchParams.set("js_code", code);
+  url.searchParams.set("grant_type", "authorization_code");
+  let payload;
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    payload = await response.json();
+  } catch {
+    throw httpError(502, "wechat_unreachable", "无法连接微信登录服务，请稍后重试。当前仍可使用手机号和密码登录。");
+  }
+  if (!payload || payload.errcode || !payload.openid) {
+    throw httpError(401, "wechat_code_invalid", "微信登录凭证无效，请重试。也可使用手机号和密码登录。");
+  }
+  return {
+    openid: String(payload.openid),
+    unionid: payload.unionid ? String(payload.unionid) : "",
+  };
+}
+
+function purgeBindTickets(pendingBinds, now = Date.now()) {
+  for (const [ticket, item] of pendingBinds) {
+    if (!item || item.expiresAt <= now) pendingBinds.delete(ticket);
+  }
+}
+
+function issueStaffSession(db, user) {
+  const token = randomUUID();
+  db.sessions.push({ token, type: "staff", userId: user.id, createdAt: new Date().toISOString() });
+  return token;
 }
 
 function requireCustomer(ctx) {
@@ -1224,7 +1354,11 @@ function serviceFromBody(db, body, existing = {}) {
   return item;
 }
 
-async function handle(req, res, dbFile) {
+async function handle(req, res, serverOptions) {
+  const dbFile = serverOptions.dbFile;
+  const exchangeWechatCode = serverOptions.exchangeWechatCode || defaultExchangeWechatCode;
+  const pendingBinds = serverOptions.pendingBinds;
+  const bindTicketTtlMs = serverOptions.bindTicketTtlMs || DEFAULT_BIND_TICKET_TTL_MS;
   if (req.method === "OPTIONS") return send(res, 204, {});
 
   const url = new URL(req.url || "/", "http://127.0.0.1");
@@ -1277,6 +1411,8 @@ async function handle(req, res, dbFile) {
         "GET /api/health",
         "GET /api/catalog",
         "POST /api/auth/staff-login",
+        "POST /api/auth/wechat-login",
+        "POST /api/auth/wechat-bind",
         "GET /api/auth/me",
         "POST /api/auth/logout",
         "GET /api/admin/assets",
@@ -1300,7 +1436,12 @@ async function handle(req, res, dbFile) {
   }
 
   if (route === "GET /api/health") {
-    return send(res, 200, { ok: true, service: "yisiyuan-local-backend", now: new Date().toISOString() });
+    return send(res, 200, {
+      ok: true,
+      service: "yisiyuan-local-backend",
+      now: new Date().toISOString(),
+      wechatLogin: wechatSettings().configured ? "configured" : "not_configured",
+    });
   }
 
   if (route === "GET /api/catalog") {
@@ -1332,10 +1473,64 @@ async function handle(req, res, dbFile) {
     return send(res, 200, { ok: true }, { "Set-Cookie": clearStaffSessionCookie() });
   }
 
+  if (route === "POST /api/auth/wechat-login") {
+    const body = await parseJson(req);
+    if (typeof body.code === "string") body.code = body.code.trim();
+    assertRequired(body, ["code"]);
+    if (body.code.length > 128) return send(res, 400, { error: "invalid_code", message: "微信登录凭证无效" });
+    const identity = await exchangeWechatCode(body.code);
+    const openid = normalizeOpenId(identity.openid);
+    const user = db.staffUsers.find((item) => item.wechatOpenid === openid);
+    if (user && !user.enabled) return send(res, 403, { error: "staff_disabled", message: "该微信绑定的师傅账号已停用" });
+    if (user) {
+      const token = issueStaffSession(db, user);
+      await writeDb(dbFile, db);
+      return send(res, 200, { bound: true, token, user: staffView(user) }, { "Set-Cookie": staffSessionCookie(token) });
+    }
+    purgeBindTickets(pendingBinds);
+    const bindTicket = randomUUID();
+    pendingBinds.set(bindTicket, {
+      openid,
+      unionid: identity.unionid ? String(identity.unionid) : "",
+      expiresAt: Date.now() + bindTicketTtlMs,
+    });
+    return send(res, 200, {
+      bound: false,
+      bindTicket,
+      message: "该微信尚未绑定师傅账号，请使用手机号和密码完成首次绑定。绑定不会开通开据权限。",
+    });
+  }
+
+  if (route === "POST /api/auth/wechat-bind") {
+    const body = await parseJson(req);
+    if (typeof body.mobile === "string") body.mobile = body.mobile.trim();
+    assertRequired(body, ["bindTicket", "mobile", "password"]);
+    purgeBindTickets(pendingBinds);
+    const pending = pendingBinds.get(body.bindTicket);
+    if (!pending) return send(res, 401, { error: "bind_ticket_invalid", message: "绑定已过期，请重新微信登录后再试" });
+    const user = db.staffUsers.find((item) => item.mobile === body.mobile && item.password === body.password && item.enabled);
+    if (!user) return send(res, 401, { error: "invalid_login", message: "账号或密码错误" });
+    if (user.wechatOpenid && user.wechatOpenid !== pending.openid) {
+      return send(res, 409, { error: "staff_already_bound", message: "该师傅账号已绑定其他微信" });
+    }
+    const taken = db.staffUsers.find((item) => item.wechatOpenid === pending.openid && item.id !== user.id);
+    if (taken) return send(res, 409, { error: "wechat_already_bound", message: "该微信已绑定其他师傅账号" });
+    user.wechatOpenid = pending.openid;
+    if (pending.unionid) user.wechatUnionid = pending.unionid;
+    const token = issueStaffSession(db, user);
+    await writeDb(dbFile, db);
+    pendingBinds.delete(body.bindTicket);
+    return send(res, 200, { bound: true, token, user: staffView(user) }, { "Set-Cookie": staffSessionCookie(token) });
+  }
+
   if (route === "GET /api/admin/permissions") {
     requireStaff(ctx, ["admin", "technician", "support"]);
     return send(res, 200, {
-      staffUsers: db.staffUsers.map(({ password, ...user }) => ({ ...user, canIssueReceipts: canIssueReceipts(user) })),
+      staffUsers: db.staffUsers.map(({ password, wechatOpenid, wechatUnionid, ...user }) => ({
+        ...user,
+        canIssueReceipts: canIssueReceipts(user),
+        wechatBound: Boolean(wechatOpenid),
+      })),
       customerRule: "客户必须先关注公众号，再微信授权登录领取；后续在小程序“我的收据”查看。",
     });
   }
@@ -1775,13 +1970,19 @@ const databaseQueues = new Map();
 
 export function createServer(options = {}) {
   const dbFile = options.dbFile || process.env.DB_FILE || DEFAULT_DB_FILE;
+  const serverOptions = {
+    dbFile,
+    exchangeWechatCode: options.exchangeWechatCode || defaultExchangeWechatCode,
+    pendingBinds: new Map(),
+    bindTicketTtlMs: options.bindTicketTtlMs || DEFAULT_BIND_TICKET_TTL_MS,
+  };
   return http.createServer(async (req, res) => {
     try {
       // The storage adapter writes snapshots. Serialize read-modify-write cycles
       // across both frontends so concurrent requests cannot overwrite each other.
       const key = path.resolve(dbFile);
       const previous = databaseQueues.get(key) || Promise.resolve();
-      const current = previous.catch(() => {}).then(() => handle(req, res, dbFile));
+      const current = previous.catch(() => {}).then(() => handle(req, res, serverOptions));
       databaseQueues.set(key, current);
       try { await current; } finally { if (databaseQueues.get(key) === current) databaseQueues.delete(key); }
     } catch (error) {
@@ -1794,6 +1995,7 @@ export function createServer(options = {}) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  loadLocalEnvFile();
   const server = createServer();
   server.listen(DEFAULT_PORT, DEFAULT_HOST, () => {
     console.log(`Local backend running at http://${DEFAULT_HOST}:${DEFAULT_PORT}`);

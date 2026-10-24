@@ -4,7 +4,7 @@
 
 ## 微信小程序
 
-`miniprogram/` 默认请求 `http://127.0.0.1:8787` 的 `/api/catalog` 和 `/api/quotes/calculate`。打开方式和真机地址见 `miniprogram/README.md`。
+`miniprogram/` 默认请求 `http://127.0.0.1:8787` 的 `/api/catalog` 和 `/api/quotes/calculate`。打开方式、真机地址、AppID 和合法域名见 `miniprogram/README.md`。
 
 ## 本地启动
 
@@ -31,6 +31,21 @@ D:/codexXm/App_bjb/local-backend/data/yisiyuan-repair.sqlite
 ```bash
 DB_FILE=D:/codexXm/App_bjb/local-backend/data/yisiyuan-repair.sqlite node src/server.mjs
 ```
+
+## 师傅微信登录
+
+小程序 `wx.login` 拿到的 code 交给：
+
+- `POST /api/auth/wechat-login`
+- `POST /api/auth/wechat-bind`（第一次用已有手机号和密码绑定）
+
+后端把 code 换成 openid 时调用微信 `jscode2session`。`WECHAT_APPID` 和 `WECHAT_APP_SECRET` 只从环境变量读取。直接运行 `node src/server.mjs` 时，若进程里还没有这两个变量，会再读 `local-backend/.env`（从 `.env.example` 复制，不要提交）。shell 里已经导出的值优先。不要把 AppSecret 写进数据库、日志或接口响应。
+
+没有 AppID / AppSecret 时，`/api/auth/wechat-login` 返回 503 `wechat_not_configured`，不会去请求微信。`/api/auth/staff-login` 和本地演示数据照常可用。微信登录不会把 `canIssueReceipts` 改成 true；未开通时开据仍是 403。
+
+`WECHAT_APPID` 要和 `miniprogram/project.config.json`、`miniprogram/config.js` 里的 AppID 相同。注册前这两处是占位符 `wxXXXXXXXXXXXXXXXX`。
+
+客户领取收据仍是原来的本地模拟接口（`/api/wechat/scan`、`/api/customer/wechat-login`），不是这次的师傅登录，也不会因为师傅绑定而自动生成客户账号。
 
 ## 已实现能力
 
@@ -75,6 +90,8 @@ DB_FILE=D:/codexXm/App_bjb/local-backend/data/yisiyuan-repair.sqlite node src/se
 - `GET /api/health`：健康检查
 - `GET /api/catalog`：小程序基础数据
 - `POST /api/auth/staff-login`：内部人员登录
+- `POST /api/auth/wechat-login`：用小程序 code 换员工会话；未绑定则返回一次性 bindTicket
+- `POST /api/auth/wechat-bind`：用 bindTicket 加手机号密码完成首次绑定
 - `GET /api/admin/assets`：后台品类/品牌数据
 - `POST /api/admin/categories`：新增品类图片
 - `PATCH /api/admin/categories/:id`：编辑品类图片
@@ -104,4 +121,4 @@ DB_FILE=D:/codexXm/App_bjb/local-backend/data/yisiyuan-repair.sqlite node src/se
 
 ## 重要说明
 
-真实微信公众号回调和微信授权登录需要公网 HTTPS 域名。本地版本先用模拟接口跑通业务逻辑，上线前再替换成微信官方接口。
+师傅小程序登录已走微信 `jscode2session`（服务端持有 AppSecret）。开发阶段小程序可以关闭合法域名校验；正式环境把后端 HTTPS 域名配进小程序 request 合法域名，说明见 `miniprogram/README.md`。客户扫码领取仍是本地模拟，不在这次范围内。
