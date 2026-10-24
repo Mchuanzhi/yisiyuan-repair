@@ -23,6 +23,7 @@ App({
     this.globalData.token = wx.getStorageSync("staffToken") || "";
     this.globalData.user = wx.getStorageSync("staffUser") || null;
     const api = require("./utils/api");
-    this.globalData.sessionReady = api.bootstrapSession().catch(() => null);
+    // getApp() is undefined until App() returns, so hand this instance to bootstrap.
+    this.globalData.sessionReady = api.bootstrapSession(this).catch(() => null);
   },
 });
