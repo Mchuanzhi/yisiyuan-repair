@@ -15,16 +15,16 @@ async function removeTestDb() {
   ]);
 }
 
-async function request(baseUrl, method, pathname, { token, cookie, body, redirect } = {}) {
+async function request(baseUrl, method, pathname, { token, cookie, body, redirect, raw, contentType: requestContentType } = {}) {
   const response = await fetch(`${baseUrl}${pathname}`, {
     method,
     redirect,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": requestContentType || "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(cookie ? { Cookie: cookie } : {}),
     },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    ...(raw != null ? { body: raw } : body ? { body: JSON.stringify(body) } : {}),
   });
   const contentType = response.headers.get("content-type") || "";
   const payload = contentType.includes("application/json") ? await response.json() : await response.text();
@@ -647,6 +647,107 @@ async function wechatAuthTests() {
   } finally {
     await new Promise((resolve) => short.close(resolve));
     await removeDb(shortFile);
+  }
+
+  await bindShapeTests();
+}
+
+async function bindShapeTests() {
+  const dbFile = path.join(os.tmpdir(), `yisiyuan-wechat-shape-${process.pid}.sqlite`);
+  await removeDb(dbFile);
+  const exchange = (code) => ({ openid: `shape-${code}`, unionid: code === "admin" ? "union-admin" : "" });
+  const server = createServer({ dbFile, exchangeWechatCode: exchange });
+  const baseUrl = await listen(server);
+  try {
+    const issued = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "tech" } });
+    assert.equal(issued.status, 200);
+    assert.equal(issued.payload.bound, false);
+    const ticket = issued.payload.bindTicket;
+
+    const missingMobile = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: ticket, mobile: "", password: "123456" },
+    });
+    assert.equal(missingMobile.status, 400);
+    assert.equal(missingMobile.payload.error, "missing_field");
+    assert.equal(missingMobile.payload.message, "请填写手机号");
+
+    const missingPassword = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: ticket, mobile: "18800000002", password: "" },
+    });
+    assert.equal(missingPassword.status, 400);
+    assert.equal(missingPassword.payload.message, "请填写密码");
+
+    const missingTicket = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { mobile: "18800000002", password: "123456" },
+    });
+    assert.equal(missingTicket.status, 400);
+    assert.equal(missingTicket.payload.message, "请先微信登录，再填写手机号和密码完成绑定");
+
+    const badPhone = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: ticket, mobile: "12345", password: "123456" },
+    });
+    assert.equal(badPhone.status, 400);
+    assert.equal(badPhone.payload.error, "invalid_mobile");
+    assert.equal(badPhone.payload.message, "请输入11位手机号");
+
+    const wrong = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: ticket, mobile: "18800000002", password: "wrong-pass" },
+    });
+    assert.equal(wrong.status, 401);
+    assert.equal(wrong.payload.error, "invalid_login");
+
+    const invalidJson = await request(baseUrl, "POST", "/api/auth/wechat-bind", { raw: "{not-json", contentType: "application/json" });
+    assert.equal(invalidJson.status, 400);
+    assert.equal(invalidJson.payload.error, "invalid_json");
+    assert.equal(invalidJson.payload.message, "请求格式不正确");
+
+    const form = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      raw: `bindTicket=${encodeURIComponent(ticket)}&mobile=${encodeURIComponent("188-0000-0002")}&password=123456`,
+      contentType: "application/json",
+    });
+    assert.equal(form.status, 200);
+    assert.equal(form.payload.bound, true);
+    assert.equal(form.payload.user.id, "staff_tech");
+    assert.equal(form.payload.user.canIssueReceipts, false);
+    assert.equal(form.payload.user.wechatBound, true);
+    assert.equal(JSON.stringify(form.payload).includes("shape-tech"), false);
+
+    const supportLogin = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "support" } });
+    const supportTicket = supportLogin.payload.bindTicket;
+    const doubled = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      raw: JSON.stringify(JSON.stringify({
+        bindTicket: supportTicket,
+        mobile: "188 0000 0003",
+        password: "123456",
+      })),
+      contentType: "application/json",
+    });
+    assert.equal(doubled.status, 200);
+    assert.equal(doubled.payload.user.id, "staff_support");
+    assert.equal(doubled.payload.user.canIssueReceipts, false);
+
+    const adminLogin = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "admin" } });
+    const numeric = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: adminLogin.payload.bindTicket, mobile: 18800000001, password: 123456 },
+    });
+    assert.equal(numeric.status, 200);
+    assert.equal(numeric.payload.user.id, "staff_admin");
+    assert.equal(numeric.payload.user.role, "admin");
+
+    const again = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "tech" } });
+    assert.equal(again.status, 200);
+    assert.equal(again.payload.bound, true);
+    assert.equal(again.payload.user.canIssueReceipts, false);
+
+    const fullwidthLogin = await request(baseUrl, "POST", "/api/auth/wechat-login", { body: { code: "fullwidth" } });
+    const fullwidth = await request(baseUrl, "POST", "/api/auth/wechat-bind", {
+      body: { bindTicket: fullwidthLogin.payload.bindTicket, mobile: "＋８６１８８０００００００９", password: "nope" },
+    });
+    assert.equal(fullwidth.status, 401);
+    assert.equal(fullwidth.payload.error, "invalid_login");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await removeDb(dbFile);
   }
 }
 

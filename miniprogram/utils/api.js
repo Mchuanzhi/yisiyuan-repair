@@ -20,6 +20,33 @@ function runtime() {
   return app.globalData;
 }
 
+function normalizeMobile(value) {
+  let text = value == null ? "" : String(value).trim();
+  text = text.replace(/\uFF0B/g, "+").replace(/\uFF0D/g, "-");
+  text = text.replace(/[\uFF10-\uFF19]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFF10 + 0x30));
+  text = text.replace(/[\s-]/g, "");
+  text = text.replace(/^\+?86(?=1\d{10}$)/, "");
+  return text;
+}
+
+function loginFields(event, data) {
+  const current = data || {};
+  const form = event && event.detail && event.detail.value;
+  const formMobile = form && form.mobile != null ? form.mobile : "";
+  const formPassword = form && form.password != null ? form.password : "";
+  return {
+    mobile: String(formMobile).trim() ? formMobile : current.mobile,
+    password: String(formPassword) !== "" ? formPassword : current.password,
+  };
+}
+
+function credentialError(mobile, password) {
+  if (!mobile) return "请填写手机号";
+  if (!/^1\d{10}$/.test(mobile)) return "请输入11位手机号";
+  if (!password) return "请填写密码";
+  return "";
+}
+
 function request(path, options) {
   const settings = options || {};
   const state = runtime();
@@ -31,7 +58,8 @@ function request(path, options) {
       data: settings.data,
       timeout: 15000,
       header: Object.assign(
-        { "Content-Type": "application/json" },
+        // 微信按 header["content-type"] 决定 POST 体是否 JSON 序列化，键名区分大小写。
+        { "content-type": "application/json" },
         state.token ? { Authorization: "Bearer " + state.token } : {},
       ),
       success(res) {
@@ -125,12 +153,20 @@ function enterWithWechat(options) {
 }
 
 function wechatBind(bindTicket, mobile, password) {
+  const ticket = String(bindTicket || "").trim();
+  const phone = normalizeMobile(mobile);
+  const secret = password == null ? "" : String(password);
+  if (!ticket) {
+    return Promise.reject(Object.assign(new Error("请先微信登录，再填写手机号和密码完成绑定"), { status: 400, code: "missing_field" }));
+  }
+  const problem = credentialError(phone, secret);
+  if (problem) return Promise.reject(Object.assign(new Error(problem), { status: 400, code: problem === "请输入11位手机号" ? "invalid_mobile" : "missing_field" }));
   return request("/api/auth/wechat-bind", {
     method: "POST",
     data: {
-      bindTicket,
-      mobile: String(mobile || "").trim(),
-      password,
+      bindTicket: ticket,
+      mobile: phone,
+      password: secret,
     },
   }).then((result) => {
     const state = runtime();
@@ -140,6 +176,13 @@ function wechatBind(bindTicket, mobile, password) {
     state.wechatErrorCode = "";
     state.skipWechatAuto = false;
     return result;
+  }).catch((error) => {
+    if (error && error.code === "bind_ticket_invalid") {
+      try {
+        runtime().bindTicket = "";
+      } catch (ignored) {}
+    }
+    throw error;
   });
 }
 
@@ -195,9 +238,13 @@ function health() {
 }
 
 function staffLogin(mobile, password) {
+  const phone = normalizeMobile(mobile);
+  const secret = password == null ? "" : String(password);
+  const problem = credentialError(phone, secret);
+  if (problem) return Promise.reject(Object.assign(new Error(problem), { status: 400, code: problem === "请输入11位手机号" ? "invalid_mobile" : "missing_field" }));
   if (runtime().useMock) {
     try {
-      const result = model.mockLogin(mobile, password);
+      const result = model.mockLogin(phone, secret);
       saveSession(result.token, result.user);
       return Promise.resolve(result);
     } catch (error) {
@@ -206,7 +253,7 @@ function staffLogin(mobile, password) {
   }
   return request("/api/auth/staff-login", {
     method: "POST",
-    data: { mobile: String(mobile || "").trim(), password },
+    data: { mobile: phone, password: secret },
   }).then((result) => {
     saveSession(result.token, result.user);
     return result;
@@ -335,6 +382,8 @@ function writeSignatureFile(dataUrl) {
 
 module.exports = {
   request,
+  normalizeMobile,
+  loginFields,
   saveSession,
   clearSession,
   getCatalog,

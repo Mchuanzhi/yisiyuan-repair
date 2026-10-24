@@ -84,7 +84,8 @@ assert.equal(loginCalls, 1);
 assert.equal(requests[0].url, "http://127.0.0.1:8787/api/auth/wechat-login");
 assert.equal(requests[0].data.code, "code-from-wx");
 assert.equal(requests[0].header.Authorization, undefined);
-assert.equal(requests[0].header["Content-Type"], "application/json");
+assert.equal(requests[0].header["content-type"], "application/json");
+assert.equal(requests[0].header["Content-Type"], undefined);
 
 nextResponse = { statusCode: 200, data: { receipts: [] } };
 await api.listReceipts();
@@ -113,6 +114,35 @@ assert.equal(requests[1].header.Authorization, undefined);
 assert.equal(bound.user.canIssueReceipts, false);
 assert.equal(state.token, "token-2");
 assert.equal(state.bindTicket, "");
+assert.equal(requests[1].header["content-type"], "application/json");
+
+reset();
+await assert.rejects(() => api.wechatBind("ticket-1", "", "123456"), (error) => error.status === 400 && error.message === "请填写手机号");
+await assert.rejects(() => api.wechatBind("", "18800000002", "123456"), (error) => error.status === 400 && error.message.includes("微信登录"));
+await assert.rejects(() => api.wechatBind("ticket-1", "18800000002", ""), (error) => error.message === "请填写密码");
+await assert.rejects(() => api.wechatBind("ticket-1", "123", "123456"), (error) => error.code === "invalid_mobile" && error.message === "请输入11位手机号");
+assert.equal(requests.length, 0);
+
+reset();
+nextResponse = {
+  statusCode: 200,
+  data: {
+    bound: true,
+    token: "token-3",
+    user: { id: "staff_tech", name: "张师傅", role: "technician", canIssueReceipts: false, wechatBound: true },
+  },
+};
+await api.wechatBind("ticket-9", "188-0000-0002", "123456");
+assert.equal(requests[0].url, "http://127.0.0.1:8787/api/auth/wechat-bind");
+assert.equal(requests[0].data.mobile, "18800000002");
+assert.equal(requests[0].data.password, "123456");
+assert.equal(requests[0].header["content-type"], "application/json");
+assert.deepEqual(
+  api.loginFields({ detail: { value: { mobile: "188 0000 0002", password: "123456" } } }, { mobile: "", password: "" }),
+  { mobile: "188 0000 0002", password: "123456" },
+);
+assert.equal(api.loginFields({ detail: { value: { mobile: "", password: "" } } }, { mobile: "18800000002", password: "123456" }).mobile, "18800000002");
+assert.equal(api.normalizeMobile("＋８６１８８０００００００２"), "18800000002");
 
 reset();
 nextResponse = { statusCode: 503, data: { error: "wechat_not_configured", message: "尚未配置" } };

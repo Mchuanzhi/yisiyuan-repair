@@ -713,12 +713,57 @@ async function writeDb(dbFile, db) {
   });
 }
 
+function textField(value) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
+}
+
+function normalizeMobile(value) {
+  let text = textField(value).trim();
+  text = text.replace(/\uFF0B/g, "+").replace(/\uFF0D/g, "-");
+  text = text.replace(/[\uFF10-\uFF19]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xFF10 + 0x30));
+  text = text.replace(/[\s-]/g, "");
+  text = text.replace(/^\+?86(?=1\d{10}$)/, "");
+  return text;
+}
+
+function decodeBody(raw, contentType) {
+  const text = String(raw || "").replace(/^\uFEFF/, "").trim();
+  if (!text) return {};
+  const type = String(contentType || "").toLowerCase();
+  const looksForm = type.includes("application/x-www-form-urlencoded")
+    || (!text.startsWith("{") && !text.startsWith("[") && !text.startsWith('"') && text.includes("="));
+  if (looksForm) return Object.fromEntries(new URLSearchParams(text));
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    throw httpError(400, "invalid_json", "请求格式不正确");
+  }
+  if (typeof value === "string") {
+    const inner = value.trim();
+    if (inner.startsWith("{") || inner.startsWith("[")) {
+      try {
+        value = JSON.parse(inner);
+      } catch (error) {
+        throw httpError(400, "invalid_json", "请求格式不正确");
+      }
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw httpError(400, "invalid_json", "请求格式不正确");
+  }
+  return value;
+}
+
 async function parseJson(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   if (!chunks.length) return {};
   const raw = Buffer.concat(chunks).toString("utf8");
-  return raw ? JSON.parse(raw) : {};
+  if (!raw.trim()) return {};
+  return decodeBody(raw, req.headers["content-type"]);
 }
 
 async function parseForm(req) {
@@ -1450,8 +1495,12 @@ async function handle(req, res, serverOptions) {
 
   if (route === "POST /api/auth/staff-login") {
     const body = await parseJson(req);
-    assertRequired(body, ["mobile", "password"]);
-    const user = db.staffUsers.find((item) => item.mobile === body.mobile && item.password === body.password && item.enabled);
+    const mobile = normalizeMobile(body.mobile);
+    const password = textField(body.password);
+    if (!mobile) return send(res, 400, { error: "missing_field", message: "请填写手机号" });
+    if (!/^1\d{10}$/.test(mobile)) return send(res, 400, { error: "invalid_mobile", message: "请输入11位手机号" });
+    if (!password) return send(res, 400, { error: "missing_field", message: "请填写密码" });
+    const user = db.staffUsers.find((item) => item.mobile === mobile && item.password === password && item.enabled);
     if (!user) return send(res, 401, { error: "invalid_login", message: "账号或密码错误" });
     const token = randomUUID();
     db.sessions.push({ token, type: "staff", userId: user.id, createdAt: new Date().toISOString() });
@@ -1503,12 +1552,17 @@ async function handle(req, res, serverOptions) {
 
   if (route === "POST /api/auth/wechat-bind") {
     const body = await parseJson(req);
-    if (typeof body.mobile === "string") body.mobile = body.mobile.trim();
-    assertRequired(body, ["bindTicket", "mobile", "password"]);
+    const bindTicket = textField(body.bindTicket).trim();
+    const mobile = normalizeMobile(body.mobile);
+    const password = textField(body.password);
+    if (!bindTicket) return send(res, 400, { error: "missing_field", message: "请先微信登录，再填写手机号和密码完成绑定" });
+    if (!mobile) return send(res, 400, { error: "missing_field", message: "请填写手机号" });
+    if (!/^1\d{10}$/.test(mobile)) return send(res, 400, { error: "invalid_mobile", message: "请输入11位手机号" });
+    if (!password) return send(res, 400, { error: "missing_field", message: "请填写密码" });
     purgeBindTickets(pendingBinds);
-    const pending = pendingBinds.get(body.bindTicket);
+    const pending = pendingBinds.get(bindTicket);
     if (!pending) return send(res, 401, { error: "bind_ticket_invalid", message: "绑定已过期，请重新微信登录后再试" });
-    const user = db.staffUsers.find((item) => item.mobile === body.mobile && item.password === body.password && item.enabled);
+    const user = db.staffUsers.find((item) => item.mobile === mobile && item.password === password && item.enabled);
     if (!user) return send(res, 401, { error: "invalid_login", message: "账号或密码错误" });
     if (user.wechatOpenid && user.wechatOpenid !== pending.openid) {
       return send(res, 409, { error: "staff_already_bound", message: "该师傅账号已绑定其他微信" });
@@ -1519,7 +1573,7 @@ async function handle(req, res, serverOptions) {
     if (pending.unionid) user.wechatUnionid = pending.unionid;
     const token = issueStaffSession(db, user);
     await writeDb(dbFile, db);
-    pendingBinds.delete(body.bindTicket);
+    pendingBinds.delete(bindTicket);
     return send(res, 200, { bound: true, token, user: staffView(user) }, { "Set-Cookie": staffSessionCookie(token) });
   }
 

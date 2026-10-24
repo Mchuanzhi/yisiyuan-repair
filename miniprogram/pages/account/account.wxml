@@ -15,11 +15,13 @@
     <text class="card-title">师傅登录</text>
     <text class="muted">首次使用请用已有手机号和密码绑定微信。之后优先微信登录。微信登录不会自动开通开据权限。</text>
     <button wx:if="{{!useMock}}" class="secondary wechat-login" disabled="{{loggingIn}}" bindtap="onWechat">微信登录</button>
-    <text class="label">手机号</text>
-    <input class="input" type="number" maxlength="11" value="{{mobile}}" bindinput="onMobile" />
-    <text class="label">密码</text>
-    <input class="input" password value="{{password}}" bindinput="onPassword" />
-    <button class="primary" disabled="{{loggingIn}}" bindtap="onLogin">{{loginLabel}}</button>
+    <form class="login-form" bindsubmit="onLogin">
+      <text class="label">手机号</text>
+      <input class="input" name="mobile" type="text" maxlength="16" placeholder="11位手机号" value="{{mobile}}" bindinput="onMobile" bindblur="onMobile" />
+      <text class="label">密码</text>
+      <input class="input" name="password" password maxlength="64" placeholder="登录密码" value="{{password}}" bindinput="onPassword" bindblur="onPassword" />
+      <button class="primary" form-type="submit" disabled="{{loggingIn}}">{{loginLabel}}</button>
+    </form>
   </view>
 
   <button wx:if="{{loggedIn}}" class="secondary logout" bindtap="onLogout">退出登录</button>

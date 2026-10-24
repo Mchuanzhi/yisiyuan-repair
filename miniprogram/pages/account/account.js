@@ -90,11 +90,13 @@ Page({
   },
 
   onMobile(event) {
-    this.setData({ mobile: event.detail.value });
+    const value = event && event.detail ? event.detail.value : "";
+    this.setData({ mobile: value == null ? "" : String(value) });
   },
 
   onPassword(event) {
-    this.setData({ password: event.detail.value });
+    const value = event && event.detail ? event.detail.value : "";
+    this.setData({ password: value == null ? "" : String(value) });
   },
 
   onBase(event) {
@@ -105,14 +107,23 @@ Page({
     this.setData({ useMock: Boolean(event.detail.value) });
   },
 
-  onLogin() {
+  onLogin(event) {
     if (this.data.loggingIn) return;
     const state = getApp().globalData;
+    const fields = api.loginFields(event, this.data);
+    const mobile = fields.mobile == null ? "" : String(fields.mobile);
+    const password = fields.password == null ? "" : String(fields.password);
+    const phone = api.normalizeMobile(mobile);
+    if (!phone || !password || !/^1\d{10}$/.test(phone)) {
+      const message = !phone ? "请填写手机号" : !/^1\d{10}$/.test(phone) ? "请输入11位手机号" : "请填写密码";
+      this.setData({ mobile, password, message });
+      return;
+    }
     const binding = Boolean(state.bindTicket) && !state.useMock;
-    this.setData({ loggingIn: true, message: "" });
+    this.setData({ loggingIn: true, message: "", mobile, password });
     const action = binding
-      ? api.wechatBind(state.bindTicket, this.data.mobile, this.data.password)
-      : api.staffLogin(this.data.mobile, this.data.password);
+      ? api.wechatBind(state.bindTicket, mobile, password)
+      : api.staffLogin(mobile, password);
     action.then((result) => {
       const allowed = result.user && result.user.canIssueReceipts;
       let message = allowed ? "登录成功，可以返回查价报价开具收据。" : "登录成功。开据权限需由管理员开通。";
@@ -120,7 +131,8 @@ Page({
       this.setData({ password: "", message });
       this.renderUser();
     }).catch((error) => {
-      this.setData({ message: error.message });
+      this.setData({ message: error.message || "登录失败，请稍后重试" });
+      this.renderUser();
     }).then(() => this.setData({ loggingIn: false }));
   },
 
