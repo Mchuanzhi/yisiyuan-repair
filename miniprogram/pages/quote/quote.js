@@ -352,19 +352,15 @@ Page({
     this.loadCatalog();
   },
 
-  openAccount() {
-    wx.navigateTo({ url: "/pages/account/account" });
-  },
-
   openDemo() {
-    wx.navigateTo({ url: "/pages/account/account" });
+    wx.switchTab({ url: "/pages/account/account" });
   },
 
   onConfirm() {
     if (!this.data.quoteReady || this._confirming) return;
     const user = getApp().globalData.user;
     if (!user || !user.canIssueReceipts) {
-      wx.navigateTo({ url: "/pages/account/account" });
+      wx.switchTab({ url: "/pages/account/account" });
       return;
     }
     const input = model.quoteInput(this.selection);

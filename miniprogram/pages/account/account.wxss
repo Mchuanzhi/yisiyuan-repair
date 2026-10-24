@@ -2,8 +2,7 @@
   height: 100vh;
   min-height: 100vh;
   box-sizing: border-box;
-  padding: 28rpx 38rpx calc(36rpx + constant(safe-area-inset-bottom));
-  padding: 28rpx 38rpx calc(36rpx + env(safe-area-inset-bottom));
+  padding: 28rpx 38rpx 36rpx;
   background: linear-gradient(180deg, #eaf6ff, #f4f4fa 280rpx);
 }
 

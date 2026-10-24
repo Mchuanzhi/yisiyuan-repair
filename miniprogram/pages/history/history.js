@@ -79,7 +79,7 @@ Page({
   },
 
   openAccount() {
-    wx.navigateTo({ url: "/pages/account/account" });
+    wx.switchTab({ url: "/pages/account/account" });
   },
 
   onOpen(event) {

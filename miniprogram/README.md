@@ -10,9 +10,9 @@
 | `pages/history/history` | tabBar「历史报价」 | 查看当前师傅开具的收据 |
 | `pages/signature/signature` | 普通页面 | Canvas 2D 手写签名，按设备像素比设置分辨率 |
 | `pages/receipt/receipt` | 普通页面 | 展示已保存的电子收据 |
-| `pages/account/account` | 普通页面，从查价页「我的」进入 | 配置接口地址、本地演示数据、内部账号登录 |
+| `pages/account/account` | tabBar「我的」 | 配置接口地址、本地演示数据、内部账号登录 |
 
-底部只有「查价报价 / 历史报价」。签名和收据盖住业务页，不进 tabBar。底部安全区交给微信导航栏，查价页的金额栏不再额外垫一层安全区。
+底部是「查价报价 / 历史报价 / 我的」。签名和收据盖住业务页，不进 tabBar。底部安全区交给微信导航栏，查价页的金额栏不再额外垫一层安全区。
 
 品类图和品牌标使用 `images/` 里的本地 PNG。接口若返回 `http(s)` 图片会直接用；data URL 会忽略并回退到本地图。
 

@@ -173,7 +173,7 @@ Page({
       });
     }).catch((error) => {
       this.setData({ submitting: false, hint: error.message || "生成失败", hintError: true });
-      if (error.status === 401 || error.status === 403) wx.navigateTo({ url: "/pages/account/account" });
+      if (error.status === 401 || error.status === 403) wx.switchTab({ url: "/pages/account/account" });
     });
   },
 });

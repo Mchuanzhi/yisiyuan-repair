@@ -47,8 +47,8 @@ function assertStructure() {
   assert.match(read("README.md"), /合法域名/);
   assert.match(read("README.md"), /WECHAT_APP_SECRET/);
   assert.match(read("README.md"), /project\.config\.json/);
-  assert.deepEqual(app.tabBar.list.map((item) => item.pagePath), ["pages/quote/quote", "pages/history/history"]);
-  assert.deepEqual(app.tabBar.list.map((item) => item.text), ["查价报价", "历史报价"]);
+  assert.deepEqual(app.tabBar.list.map((item) => item.pagePath), ["pages/quote/quote", "pages/history/history", "pages/account/account"]);
+  assert.deepEqual(app.tabBar.list.map((item) => item.text), ["查价报价", "历史报价", "我的"]);
   for (const page of ["pages/quote/quote", "pages/history/history", "pages/signature/signature", "pages/receipt/receipt", "pages/account/account"]) {
     assert.ok(app.pages.includes(page), page);
     for (const ext of [".js", ".json", ".wxml", ".wxss"]) {
@@ -63,6 +63,16 @@ function assertStructure() {
   assert.equal(wxml.includes("<select"), false);
   assert.equal(wxml.includes("data:image"), false);
   assert.equal(wxml.includes(":has("), false);
+  assert.equal(read("pages/quote/quote.wxml").includes("我的"), false);
+  assert.equal(read("pages/quote/quote.wxml").includes('class="mine"'), false);
+  assert.equal(read("pages/history/history.wxml").includes("我的"), false);
+  const navSources = ["pages/quote/quote.js", "pages/history/history.js", "pages/signature/signature.js", "pages/receipt/receipt.js", "pages/account/account.js"].map((file) => read(file)).join("\n");
+  assert.equal(navSources.includes('navigateTo({ url: "/pages/account/account" })'), false);
+  assert.equal(navSources.includes('redirectTo({ url: "/pages/account/account" })'), false);
+  assert.match(read("pages/quote/quote.js"), /switchTab\(\{ url: "\/pages\/account\/account" \}\)/);
+  assert.match(read("pages/history/history.js"), /switchTab\(\{ url: "\/pages\/account\/account" \}\)/);
+  assert.match(read("pages/signature/signature.js"), /switchTab\(\{ url: "\/pages\/account\/account" \}\)/);
+  assert.match(read("pages/account/account.wxml"), /pageHeight/);
   assert.match(read("pages/quote/quote.wxml"), /<picker/);
   assert.match(read("pages/quote/quote.wxml"), /<switch/);
   assert.match(read("pages/quote/quote.wxml"), /打开本地演示/);
@@ -82,6 +92,8 @@ function assertStructure() {
     "images/tab-quote-active.png",
     "images/tab-history.png",
     "images/tab-history-active.png",
+    "images/tab-mine.png",
+    "images/tab-mine-active.png",
     "images/categories/air.png",
     "images/categories/default.png",
     "images/brands/gree.png",

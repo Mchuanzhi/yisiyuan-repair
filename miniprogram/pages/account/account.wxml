@@ -1,4 +1,4 @@
-<scroll-view class="page" scroll-y>
+<scroll-view class="page" style="height: {{pageHeight}}px; min-height: {{pageHeight}}px;" scroll-y>
   <view class="profile">
     <view class="avatar">壹</view>
     <text class="profile-name">{{profileName}}</text>

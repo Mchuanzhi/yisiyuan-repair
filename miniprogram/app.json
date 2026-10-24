@@ -2,9 +2,9 @@
   "pages": [
     "pages/quote/quote",
     "pages/history/history",
+    "pages/account/account",
     "pages/signature/signature",
-    "pages/receipt/receipt",
-    "pages/account/account"
+    "pages/receipt/receipt"
   ],
   "window": {
     "navigationBarBackgroundColor": "#EAF6FF",
@@ -30,6 +30,12 @@
         "text": "历史报价",
         "iconPath": "images/tab-history.png",
         "selectedIconPath": "images/tab-history-active.png"
+      },
+      {
+        "pagePath": "pages/account/account",
+        "text": "我的",
+        "iconPath": "images/tab-mine.png",
+        "selectedIconPath": "images/tab-mine-active.png"
       }
     ]
   },
