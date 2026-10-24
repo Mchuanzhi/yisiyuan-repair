@@ -1,7 +1,23 @@
 const model = require("./model");
 
+// DevTools lib 3.17.5 still has getApp() undefined for the whole App.onLaunch call.
+// onLaunch passes its instance in; later calls use getApp() once the runtime has registered it.
+let appInstance = null;
+
 function runtime() {
-  return getApp().globalData;
+  let app = null;
+  if (typeof getApp === "function") {
+    try {
+      app = getApp();
+    } catch (error) {
+      app = null;
+    }
+  }
+  if (!app || !app.globalData) app = appInstance;
+  if (!app || !app.globalData) {
+    throw Object.assign(new Error("小程序尚未完成启动"), { code: "app_not_ready" });
+  }
+  return app.globalData;
 }
 
 function request(path, options) {
@@ -127,7 +143,8 @@ function wechatBind(bindTicket, mobile, password) {
   });
 }
 
-function bootstrapSession() {
+function bootstrapSession(app) {
+  if (app && app.globalData) appInstance = app;
   const state = runtime();
   if (state.sessionPromise) return state.sessionPromise;
   const run = () => {
