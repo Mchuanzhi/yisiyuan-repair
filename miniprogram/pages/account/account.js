@@ -24,6 +24,7 @@ Page({
 
   onLoad() {
     this.debugUnlocked = false;
+    this._authLock = false;
     this.applyLayout();
     this.refreshDebug();
   },
@@ -71,10 +72,11 @@ Page({
   renderUser() {
     const state = getApp().globalData;
     const user = state.user;
+    const bindTicket = state.useMock ? "" : api.currentBindTicket();
     let wechatLine = "未绑定微信。可点「微信登录」，或直接用手机号和密码。";
     if (state.useMock) wechatLine = "本地演示不连接微信。没有 AppID 时也可以用手机号和密码走通查价和开据。";
     else if (user && user.wechatBound) wechatLine = "已绑定微信。下次打开会优先使用微信登录。开据权限仍由管理员控制。";
-    else if (state.bindTicket) wechatLine = "该微信尚未绑定。请填写下方手机号和密码完成首次绑定，不会因此开通开据权限。";
+    else if (bindTicket) wechatLine = "该微信尚未绑定。请填写下方手机号和密码完成首次绑定，不会因此开通开据权限。";
     else if (state.wechatErrorCode === "wechat_not_configured" || state.wechatErrorCode === "wx_login_failed" || state.wechatErrorCode === "wx_login_unavailable") {
       wechatLine = "微信登录还不可用。请在注册后把 AppID 写入 project.config.json 和 config.js，并在后端设置 WECHAT_APP_SECRET。现在可用手机号和密码登录。";
     } else if (state.wechatHint && !user) wechatLine = state.wechatHint;
@@ -84,7 +86,7 @@ Page({
       profileStatus: model.roleLabel(user),
       permission: model.permissionLabel(user),
       wechatLine,
-      loginLabel: !state.useMock && state.bindTicket ? "绑定并登录" : "登录",
+      loginLabel: !state.useMock && bindTicket ? "绑定并登录" : "登录",
       useMock: state.useMock,
     });
   },
@@ -106,26 +108,29 @@ Page({
   },
 
   onLogin() {
-    if (this.data.loggingIn) return;
+    if (this._authLock || this.data.loggingIn) return;
     const state = getApp().globalData;
-    const binding = Boolean(state.bindTicket) && !state.useMock;
+    const binding = !state.useMock && Boolean(api.currentBindTicket());
+    this._authLock = true;
     this.setData({ loggingIn: true, message: "" });
-    const action = binding
-      ? api.wechatBind(state.bindTicket, this.data.mobile, this.data.password)
-      : api.staffLogin(this.data.mobile, this.data.password);
-    action.then((result) => {
+    api.loginWithPassword(this.data.mobile, this.data.password).then((result) => {
       const allowed = result.user && result.user.canIssueReceipts;
       let message = allowed ? "登录成功，可以返回查价报价开具收据。" : "登录成功。开据权限需由管理员开通。";
       if (binding) message = allowed ? "已绑定微信，可以返回查价报价开具收据。" : "已绑定微信。开据权限需由管理员开通，微信绑定不会自动开通。";
       this.setData({ password: "", message });
       this.renderUser();
     }).catch((error) => {
-      this.setData({ message: error.message });
-    }).then(() => this.setData({ loggingIn: false }));
+      this.setData({ message: error.message || "登录失败" });
+      this.renderUser();
+    }).then(() => {
+      this._authLock = false;
+      this.setData({ loggingIn: false });
+    });
   },
 
   onWechat() {
-    if (this.data.loggingIn) return;
+    if (this._authLock || this.data.loggingIn) return;
+    this._authLock = true;
     this.setData({ loggingIn: true, message: "正在通过微信登录…" });
     api.enterWithWechat({ force: true }).then((result) => {
       if (result && result.bound) {
@@ -142,7 +147,10 @@ Page({
     }).catch((error) => {
       this.setData({ message: error.message || "微信登录失败，请改用手机号和密码" });
       this.renderUser();
-    }).then(() => this.setData({ loggingIn: false }));
+    }).then(() => {
+      this._authLock = false;
+      this.setData({ loggingIn: false });
+    });
   },
 
   onLogout() {

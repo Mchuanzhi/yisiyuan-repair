@@ -49,6 +49,11 @@ globalThis.wx = {
 
 const api = require("../utils/api.js");
 
+function bodyOf(index) {
+  const data = requests[index].data;
+  return typeof data === "string" ? JSON.parse(data) : data;
+}
+
 function reset() {
   Object.assign(state, {
     apiBase: "http://127.0.0.1:8787",
@@ -65,6 +70,7 @@ function reset() {
   requests.length = 0;
   loginCalls = 0;
   globalThis.wx.loginMode = "ok";
+  globalThis.getApp = () => ({ globalData: state });
   nextResponse = {
     statusCode: 200,
     data: {
@@ -73,6 +79,7 @@ function reset() {
       user: { id: "staff_tech", name: "张师傅", role: "technician", canIssueReceipts: false, wechatBound: true },
     },
   };
+  api.clearSession();
 }
 
 reset();
@@ -82,9 +89,11 @@ assert.equal(entered.user.canIssueReceipts, false);
 assert.equal(state.token, "token-1");
 assert.equal(loginCalls, 1);
 assert.equal(requests[0].url, "http://127.0.0.1:8787/api/auth/wechat-login");
-assert.equal(requests[0].data.code, "code-from-wx");
+assert.equal(bodyOf(0).code, "code-from-wx");
+assert.equal(typeof requests[0].data, "string");
 assert.equal(requests[0].header.Authorization, undefined);
-assert.equal(requests[0].header["Content-Type"], "application/json");
+assert.equal(requests[0].header["content-type"], "application/json");
+assert.equal(requests[0].header["Content-Type"], undefined);
 
 nextResponse = { statusCode: 200, data: { receipts: [] } };
 await api.listReceipts();
@@ -106,9 +115,11 @@ nextResponse = {
 };
 const bound = await api.wechatBind("ticket-1", " 18800000002 ", "123456");
 assert.equal(requests[1].url, "http://127.0.0.1:8787/api/auth/wechat-bind");
-assert.equal(requests[1].data.bindTicket, "ticket-1");
-assert.equal(requests[1].data.mobile, "18800000002");
-assert.equal(requests[1].data.password, "123456");
+assert.equal(bodyOf(1).bindTicket, "ticket-1");
+assert.equal(bodyOf(1).mobile, "18800000002");
+assert.equal(bodyOf(1).password, "123456");
+assert.equal(requests[1].header["content-type"], "application/json");
+assert.equal(requests[1].header["Content-Type"], undefined);
 assert.equal(requests[1].header.Authorization, undefined);
 assert.equal(bound.user.canIssueReceipts, false);
 assert.equal(state.token, "token-2");
@@ -195,7 +206,7 @@ assert.equal(earlyUser.wechatBound, true);
 assert.equal(state.token, "token-1");
 assert.equal(loginCalls, 1);
 assert.equal(requests[0].url, "http://127.0.0.1:8787/api/auth/wechat-login");
-assert.equal(requests[0].data.code, "code-from-wx");
+assert.equal(bodyOf(0).code, "code-from-wx");
 
 reset();
 state.useMock = true;
@@ -226,8 +237,8 @@ assert.equal(phone.token, "phone-token");
 assert.equal(phone.user.canIssueReceipts, false);
 assert.equal(state.token, "phone-token");
 assert.equal(requests[0].url, "http://127.0.0.1:8787/api/auth/staff-login");
-assert.equal(requests[0].data.mobile, "18800000002");
-assert.equal(requests[0].data.password, "123456");
+assert.equal(bodyOf(0).mobile, "18800000002");
+assert.equal(bodyOf(0).password, "123456");
 assert.equal(loginCalls, 0);
 
 const storage = {};
@@ -309,6 +320,87 @@ assert.equal(failedBoot, null);
 assert.equal(launched.globalData.token, "");
 assert.equal(loginCalls, 1);
 assert.equal(launched.globalData.wechatErrorCode, "wechat_not_configured");
+
+function freshState() {
+  return {
+    apiBase: "http://127.0.0.1:8787",
+    useMock: false,
+    token: "",
+    user: null,
+    bindTicket: "",
+    wechatHint: "",
+    wechatErrorCode: "",
+    skipWechatAuto: false,
+    sessionReady: null,
+    sessionPromise: null,
+  };
+}
+
+reset();
+const launchState = freshState();
+const pageState = freshState();
+globalThis.getApp = () => undefined;
+nextResponse = { statusCode: 200, data: { bound: false, bindTicket: "ticket-split", message: "请绑定" } };
+await api.bootstrapSession({ globalData: launchState });
+assert.equal(launchState.bindTicket, "ticket-split");
+assert.equal(pageState.bindTicket, "");
+globalThis.getApp = () => ({ globalData: pageState });
+assert.equal(api.currentBindTicket(), "ticket-split");
+assert.equal(pageState.bindTicket, "ticket-split");
+requests.length = 0;
+nextResponse = {
+  statusCode: 200,
+  data: {
+    bound: true,
+    token: "token-split",
+    user: { id: "staff_tech", name: "张师傅", role: "technician", canIssueReceipts: false, wechatBound: true },
+  },
+};
+const healed = await api.loginWithPassword("18800000002", "123456");
+assert.equal(requests.length, 1);
+assert.equal(requests[0].url, "http://127.0.0.1:8787/api/auth/wechat-bind");
+assert.equal(bodyOf(0).bindTicket, "ticket-split");
+assert.equal(bodyOf(0).mobile, "18800000002");
+assert.equal(bodyOf(0).password, "123456");
+assert.equal(healed.user.canIssueReceipts, false);
+assert.equal(pageState.token, "token-split");
+assert.equal(pageState.bindTicket, "");
+
+reset();
+requests.length = 0;
+await assert.rejects(
+  () => api.wechatBind("", "18800000002", "123456"),
+  (error) => error.code === "missing_bind_ticket" && /微信登录/.test(error.message),
+);
+await assert.rejects(
+  () => api.wechatBind("   ", "18800000002", "123456"),
+  (error) => error.code === "missing_bind_ticket",
+);
+await assert.rejects(
+  () => api.wechatBind("ticket-1", " ", ""),
+  (error) => error.code === "missing_field" && /手机号和密码/.test(error.message),
+);
+await assert.rejects(
+  () => api.loginWithPassword("", "123456"),
+  (error) => error.code === "missing_field" && requests.length === 0,
+);
+assert.equal(requests.length, 0);
+
+nextResponse = {
+  statusCode: 200,
+  data: {
+    token: "phone-only",
+    user: { id: "staff_tech", name: "张师傅", role: "technician", canIssueReceipts: false },
+  },
+};
+const phoneOnly = await api.loginWithPassword(" 18800000002 ", "123456");
+assert.equal(phoneOnly.token, "phone-only");
+assert.equal(phoneOnly.user.canIssueReceipts, false);
+assert.equal(requests.length, 1);
+assert.equal(requests[0].url, "http://127.0.0.1:8787/api/auth/staff-login");
+assert.equal(bodyOf(0).mobile, "18800000002");
+assert.equal(bodyOf(0).password, "123456");
+assert.equal(loginCalls, 0);
 
 globalThis.getApp = originalGetApp;
 globalThis.wx.getStorageSync = originalGetStorage;

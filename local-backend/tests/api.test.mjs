@@ -648,6 +648,67 @@ async function wechatAuthTests() {
     await new Promise((resolve) => short.close(resolve));
     await removeDb(shortFile);
   }
+
+  const bodyFile = path.join(os.tmpdir(), `yisiyuan-wechat-body-${process.pid}.sqlite`);
+  await removeDb(bodyFile);
+  const bodyServer = createServer({ dbFile: bodyFile, exchangeWechatCode: mockExchange });
+  const bodyUrl = await listen(bodyServer);
+  try {
+    const empty = await fetch(`${bodyUrl}/api/auth/wechat-bind`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    const emptyPayload = await empty.json();
+    assert.equal(empty.status, 400);
+    assert.equal(emptyPayload.error, "missing_field");
+    assert.match(emptyPayload.message, /bindTicket/);
+
+    const blank = await request(bodyUrl, "POST", "/api/auth/wechat-bind", { body: {} });
+    assert.equal(blank.status, 400);
+    assert.equal(blank.payload.error, "missing_field");
+    assert.match(blank.payload.message, /bindTicket/);
+
+    const techTicket = await request(bodyUrl, "POST", "/api/auth/wechat-login", { body: { code: "code-tech" } });
+    assert.equal(techTicket.payload.bound, false);
+    const doubled = JSON.stringify(JSON.stringify({
+      bindTicket: techTicket.payload.bindTicket,
+      mobile: "18800000002",
+      password: "123456",
+    }));
+    const doubledResponse = await fetch(`${bodyUrl}/api/auth/wechat-bind`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: doubled,
+    });
+    const doubledPayload = await doubledResponse.json();
+    assert.equal(doubledResponse.status, 200, JSON.stringify(doubledPayload));
+    assert.equal(doubledPayload.user.canIssueReceipts, false);
+    assert.equal(doubledPayload.user.wechatBound, true);
+
+    const otherTicket = await request(bodyUrl, "POST", "/api/auth/wechat-login", { body: { code: "code-other" } });
+    const formResponse = await fetch(`${bodyUrl}/api/auth/wechat-bind`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        bindTicket: otherTicket.payload.bindTicket,
+        mobile: " 18800000003 ",
+        password: "123456",
+      }),
+    });
+    const formPayload = await formResponse.json();
+    assert.equal(formResponse.status, 200, JSON.stringify(formPayload));
+    assert.equal(formPayload.user.canIssueReceipts, false);
+    assert.equal(formPayload.user.wechatBound, true);
+
+    const stillPassword = await request(bodyUrl, "POST", "/api/auth/staff-login", {
+      body: { mobile: "18800000001", password: "123456" },
+    });
+    assert.equal(stillPassword.status, 200);
+    assert.equal(stillPassword.payload.user.role, "admin");
+  } finally {
+    await new Promise((resolve) => bodyServer.close(resolve));
+    await removeDb(bodyFile);
+  }
 }
 
 main().catch((error) => {
