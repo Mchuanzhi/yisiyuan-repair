@@ -1,6 +1,7 @@
 const model = require("../../utils/model");
 const api = require("../../utils/api");
 const layout = require("../../utils/layout");
+const debugAccess = require("../../utils/debug-access");
 const initialFrame = layout.pageFrame(375, 667);
 
 Page({
@@ -18,18 +19,45 @@ Page({
     message: "",
     wechatLine: "进入后会尝试微信登录。还没有 AppID 时请用手机号和密码。",
     loginLabel: "登录",
+    showDebug: debugAccess.showDebugSettings(debugAccess.readEnvVersion(), false),
   },
 
   onLoad() {
+    this.debugUnlocked = false;
     this.applyLayout();
+    this.refreshDebug();
   },
 
   onShow() {
     this.applyLayout();
+    this.refreshDebug();
     const state = getApp().globalData;
     this.setData({ apiBase: state.apiBase, useMock: state.useMock });
     const ready = state.sessionReady || Promise.resolve();
     ready.then(() => (state.token ? api.refreshMe().catch(() => null) : null)).then(() => this.renderUser());
+  },
+
+  refreshDebug() {
+    const version = debugAccess.readEnvVersion();
+    this.setData({ showDebug: debugAccess.showDebugSettings(version, this.debugUnlocked) });
+  },
+
+  unlockDebug() {
+    this.debugUnlocked = true;
+    if (this.data.showDebug) return;
+    this.setData({ showDebug: true, message: "已打开调试设置" });
+  },
+
+  onProfileTap() {
+    const now = Date.now();
+    const recent = (this._profileTaps || []).filter((at) => now - at < 2000);
+    recent.push(now);
+    this._profileTaps = recent;
+    if (recent.length >= 5) this.unlockDebug();
+  },
+
+  onProfileLongPress() {
+    this.unlockDebug();
   },
 
   applyLayout() {

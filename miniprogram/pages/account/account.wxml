@@ -1,5 +1,5 @@
 <scroll-view class="page" style="height: {{pageHeight}}px; min-height: {{pageHeight}}px;" scroll-y>
-  <view class="profile">
+  <view class="profile" bindtap="onProfileTap" bindlongpress="onProfileLongPress">
     <view class="avatar">壹</view>
     <text class="profile-name">{{profileName}}</text>
     <text class="muted">{{profileStatus}}</text>
@@ -24,6 +24,7 @@
 
   <button wx:if="{{loggedIn}}" class="secondary logout" bindtap="onLogout">退出登录</button>
 
+  <view hidden="{{!showDebug}}">
   <view class="card">
     <text class="card-title">报价接口</text>
     <text class="muted">指向正在运行的 local-backend。开发者工具需关闭合法域名校验；本工程 project.config.json 已设置 urlCheck 为 false。</text>
@@ -47,6 +48,7 @@
     <text class="muted">师傅 18800000002 / 123456</text>
     <text class="muted">管理员 18800000001 / 123456</text>
     <text class="muted">正式接口里，张师傅默认不能开据。请管理员在后台「权限设置」开通后再生成收据。打开本地演示数据时，张师傅可以直接走通签名和收据。</text>
+  </view>
   </view>
   <text class="message">{{message}}</text>
 </scroll-view>

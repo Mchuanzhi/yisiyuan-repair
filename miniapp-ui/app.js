@@ -420,6 +420,7 @@ function renderCategories() {
       state.serviceIds = new Set(firstService ? [firstService.id] : []);
       if (firstService) setWarrantyFromServices();
       state.brandId = availableBrands()[0]?.id ?? "other";
+      openQuotePanels(["category", "service"]);
       render();
     });
   });
@@ -433,6 +434,7 @@ function renderCategories() {
       state.serviceIds = new Set(first ? [first.id] : []);
       if (first) setWarrantyFromServices();
       state.brandId = availableBrands()[0]?.id ?? "other";
+      openQuotePanels(["category", "service"]);
       render();
     });
   });
@@ -476,6 +478,7 @@ function renderServices() {
       if (!availableBrands().some((brand) => brand.id === state.brandId)) {
         state.brandId = availableBrands()[0]?.id ?? "other";
       }
+      openQuotePanels(state.serviceIds.size ? ["service", "brand"] : ["service"]);
       render();
     });
   });
@@ -502,6 +505,7 @@ function renderBrands() {
   document.querySelectorAll("[data-brand]").forEach((button) => {
     button.addEventListener("click", () => {
       state.brandId = button.dataset.brand;
+      openQuotePanels(["brand", "extra"]);
       render();
     });
   });
@@ -550,6 +554,7 @@ function renderExtras() {
         state.enabledExtras.delete(input.dataset.extra);
       }
       input.closest(".extra-item")?.classList.toggle("is-active", input.checked);
+      openQuotePanels(["extra", "warranty"]);
       void renderQuote();
     });
   });
@@ -572,6 +577,7 @@ function renderWarrantyOptions() {
   document.querySelectorAll("[data-warranty-days]").forEach((button) => {
     button.addEventListener("click", () => {
       state.warrantyDays = Number(button.dataset.warrantyDays);
+      openQuotePanels(["warranty", "quote"]);
       renderWarrantyOptions();
       renderQuote();
     });
@@ -621,7 +627,7 @@ async function createReceipt(signatureDataUrl) {
     total: receipt.amount,
     warrantyDays: receipt.warrantyDays,
     warrantyExpire: receipt.warrantyExpireDate,
-    claimText: "收据已保存。微信扫码领取尚未接入，请联系门店获取凭证。",
+    claimText: "收据已保存，请向客户出示本页留存。",
     signatureDataUrl: receipt.signatureDataUrl,
     qrUrl: "",
     lines: [
@@ -794,6 +800,15 @@ document.querySelectorAll("[data-view]").forEach((button) => {
   });
 });
 
+function openQuotePanels(names) {
+  names.forEach((name) => {
+    const panel = document.querySelector(`[data-panel="${name}"]`);
+    const button = document.querySelector(`[data-collapse="${name}"]`);
+    if (panel) panel.classList.remove("is-collapsed");
+    if (button) button.setAttribute("aria-expanded", "true");
+  });
+}
+
 document.querySelectorAll("[data-collapse]").forEach((button) => {
   button.addEventListener("click", () => {
     const panel = document.querySelector(`[data-panel="${button.dataset.collapse}"]`);
@@ -843,6 +858,7 @@ els.searchInput.addEventListener("input", (event) => {
   } else if (state.query.trim()) {
     state.serviceIds.clear();
   }
+  openQuotePanels(state.serviceIds.size ? ["category", "service", "brand"] : ["service"]);
   render();
 });
 
