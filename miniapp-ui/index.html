@@ -53,8 +53,8 @@
               </div>
             </section>
 
-            <section class="panel service-panel collapsible" data-panel="service">
-              <button class="section-toggle" type="button" data-collapse="service" aria-expanded="true">
+            <section class="panel service-panel collapsible is-collapsed" data-panel="service">
+              <button class="section-toggle" type="button" data-collapse="service" aria-expanded="false">
                 <span id="serviceTitle">常用项目</span>
                 <strong id="resultCount"></strong>
                 <i aria-hidden="true"></i>
@@ -64,8 +64,8 @@
               </div>
             </section>
 
-            <section class="panel brand-panel collapsible" data-panel="brand">
-              <button class="section-toggle" type="button" data-collapse="brand" aria-expanded="true">
+            <section class="panel brand-panel collapsible is-collapsed" data-panel="brand">
+              <button class="section-toggle" type="button" data-collapse="brand" aria-expanded="false">
                 <span>品牌</span>
                 <strong id="brandCount"></strong>
                 <i aria-hidden="true"></i>
@@ -75,8 +75,8 @@
               </div>
             </section>
 
-            <section class="panel collapsible" data-panel="extra">
-              <button class="section-toggle" type="button" data-collapse="extra" aria-expanded="true">
+            <section class="panel collapsible is-collapsed" data-panel="extra">
+              <button class="section-toggle" type="button" data-collapse="extra" aria-expanded="false">
                 <span>特殊费用</span>
                 <strong>按现场勾选</strong>
                 <i aria-hidden="true"></i>
@@ -86,8 +86,8 @@
               </div>
             </section>
 
-            <section class="panel collapsible" data-panel="warranty">
-              <button class="section-toggle" type="button" data-collapse="warranty" aria-expanded="true">
+            <section class="panel collapsible is-collapsed" data-panel="warranty">
+              <button class="section-toggle" type="button" data-collapse="warranty" aria-expanded="false">
                 <span>保修设置</span>
                 <strong id="warrantySummary">30天</strong>
                 <i aria-hidden="true"></i>
@@ -97,8 +97,8 @@
               </div>
             </section>
 
-            <section class="quote-card inline-quote collapsible" data-panel="quote">
-              <button class="section-toggle quote-toggle" type="button" data-collapse="quote" aria-expanded="true">
+            <section class="quote-card inline-quote collapsible is-collapsed" data-panel="quote">
+              <button class="section-toggle quote-toggle" type="button" data-collapse="quote" aria-expanded="false">
                 <span>当前报价单</span>
                 <strong>同页实时更新</strong>
                 <i aria-hidden="true"></i>
@@ -250,12 +250,8 @@
                   <span>客户签名</span>
                   <img id="receiptSignature" alt="客户签名" />
                 </div>
-                <div>
-                  <span>关注公众号领取</span>
-                  <img id="receiptQr" alt="收据二维码" />
-                  <small id="receiptClaimHint">先关注公众号，再授权登录领取；后续可在小程序查看</small>
-                </div>
               </div>
+              <p class="receipt-claim" id="receiptClaimHint">收据已保存在师傅端，可在历史报价中查看。</p>
             </article>
           </div>
         </section>

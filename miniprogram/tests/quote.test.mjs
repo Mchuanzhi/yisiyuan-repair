@@ -151,7 +151,88 @@ async function assertServerParity() {
   }
 }
 
+function assertUiPolish() {
+  const initial = model.collapsedPanels(null, false, "category");
+  assert.deepEqual(initial, {
+    category: false,
+    service: true,
+    brand: true,
+    extra: true,
+    warranty: true,
+    quote: true,
+  });
+  const afterCategory = model.collapsedPanels({ category: true }, false, "service");
+  assert.equal(afterCategory.category, false);
+  assert.equal(afterCategory.service, false);
+  assert.equal(afterCategory.brand, true);
+  assert.equal(afterCategory.extra, true);
+  assert.equal(afterCategory.warranty, true);
+  assert.equal(afterCategory.quote, true);
+  const withExtra = model.collapsedPanels({ category: true, service: true, brand: true }, true, "warranty");
+  assert.equal(withExtra.extra, false);
+  assert.equal(withExtra.warranty, false);
+  assert.equal(withExtra.quote, true);
+  const quoted = model.collapsedPanels({ category: true, service: true, brand: true, warranty: true, quote: true }, false, "quote");
+  assert.equal(quoted.quote, false);
+  assert.equal(quoted.warranty, false);
+  assert.equal(quoted.extra, true);
+  const catalog = model.normalizeCatalog(model.publicCatalog());
+  const ready = model.presentLists(catalog, model.blankState());
+  const firstScreen = model.collapsedPanels({}, ready.selection.extraIds.length > 0, "category");
+  assert.equal(ready.canQuote, true);
+  assert.equal(firstScreen.service, true);
+  assert.equal(firstScreen.brand, true);
+  assert.equal(firstScreen.quote, true);
+
+  const quoteJs = read("pages/quote/quote.js");
+  assert.match(quoteJs, /collapsedPanels/);
+  assert.match(quoteJs, /syncPanels\("service"\)/);
+  assert.match(quoteJs, /syncPanels\("quote"\)/);
+  assert.match(quoteJs, /确认报价 · 签名/);
+  assert.match(read("pages/quote/quote.wxml"), /dock-amount/);
+  assert.match(read("pages/quote/quote.wxml"), /onConfirm/);
+
+  const account = read("pages/account/account.wxml");
+  const debugAt = account.indexOf("showDebugTools");
+  assert.ok(debugAt > account.indexOf("onLogout"));
+  const before = account.slice(0, debugAt);
+  assert.equal(before.includes("报价接口"), false);
+  assert.equal(before.includes("本地演示数据"), false);
+  assert.match(before, /开具收据权限/);
+  assert.match(before, /内部人员登录/);
+  const debug = account.slice(debugAt);
+  assert.match(debug, /报价接口/);
+  assert.match(debug, /本地演示数据/);
+  const accountJs = read("pages/account/account.js");
+  assert.match(accountJs, /envVersion === "develop"/);
+  assert.match(accountJs, /onDebugEntry/);
+  assert.match(accountJs, /showDebugTools = true/);
+
+  const claim = model.presentReceipt({ amount: 10, lines: [], warrantyDays: 30 }, "");
+  assert.equal(claim.claimText, "收据已保存在师傅端，可在历史报价中查看。");
+  assert.equal(/公众号|订阅消息|扫码|领取/.test(claim.claimText), false);
+  const receiptWxml = read("pages/receipt/receipt.wxml");
+  assert.match(receiptWxml, /claimText/);
+  assert.equal(/公众号|订阅消息/.test(receiptWxml), false);
+
+  const previewRoot = path.resolve(root, "../miniapp-ui");
+  const preview = fs.readFileSync(path.join(previewRoot, "index.html"), "utf8");
+  const previewJs = fs.readFileSync(path.join(previewRoot, "app.js"), "utf8");
+  assert.match(preview, /class="panel collapsible" data-panel="category"/);
+  assert.match(preview, /class="panel service-panel collapsible is-collapsed"/);
+  assert.match(preview, /class="panel brand-panel collapsible is-collapsed"/);
+  assert.match(preview, /class="panel collapsible is-collapsed" data-panel="extra"/);
+  assert.match(preview, /class="panel collapsible is-collapsed" data-panel="warranty"/);
+  assert.match(preview, /class="quote-card inline-quote collapsible is-collapsed"/);
+  assert.equal(/关注公众号|订阅消息|扫码领取/.test(preview + previewJs), false);
+  assert.match(preview, /收据已保存在师傅端，可在历史报价中查看。/);
+  assert.match(previewJs, /function revealStep/);
+  assert.match(preview, /id="dockTotal"/);
+  assert.match(preview, /确认报价 · 签名/);
+}
+
 assertStructure();
 assertMockMath();
+assertUiPolish();
 await assertServerParity();
 console.log("miniprogram quote checks passed");

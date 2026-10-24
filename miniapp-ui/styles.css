@@ -964,9 +964,16 @@ h2 {
 
 .receipt-signature {
   display: grid;
-  grid-template-columns: 1fr 112px;
+  grid-template-columns: 1fr;
   gap: 14px;
   align-items: end;
+}
+
+.receipt-claim {
+  margin: 12px 0 0;
+  color: var(--primary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .receipt-signature div {
@@ -980,14 +987,6 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   object-fit: contain;
-  background: #fff;
-}
-
-#receiptQr {
-  width: 112px;
-  height: 112px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
   background: #fff;
 }
 

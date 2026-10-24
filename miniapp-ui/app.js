@@ -58,9 +58,11 @@ const els = {
   receiptLines: document.querySelector("#receiptLines"),
   receiptTotal: document.querySelector("#receiptTotal"),
   receiptSignature: document.querySelector("#receiptSignature"),
-  receiptQr: document.querySelector("#receiptQr"),
   receiptClaimHint: document.querySelector("#receiptClaimHint"),
 };
+
+const quotePanels = ["category", "service", "brand", "extra", "warranty", "quote"];
+const picked = {};
 
 let hasSignature = false;
 let staffUser = null;
@@ -271,47 +273,23 @@ function makeReceiptNo(date) {
   return `YSY${datePart}${String(date.getTime()).slice(-5)}`;
 }
 
-function receiptQrSvg(receiptNo) {
-  const modules = 21;
-  const cell = 6;
-  const size = modules * cell;
-  const chars = receiptNo.split("").map((char) => char.charCodeAt(0));
+function nextOpenStep(fallback) {
+  if (picked.quote) return "quote";
+  if (picked.warranty) return "warranty";
+  return fallback;
+}
 
-  function inFinder(x, y, originX, originY) {
-    return x >= originX && x < originX + 7 && y >= originY && y < originY + 7;
-  }
-
-  function finder(originX, originY) {
-    const p = originX * cell;
-    const q = originY * cell;
-    return `
-      <rect x="${p}" y="${q}" width="${7 * cell}" height="${7 * cell}" fill="#14211f"/>
-      <rect x="${p + cell}" y="${q + cell}" width="${5 * cell}" height="${5 * cell}" fill="#fff"/>
-      <rect x="${p + cell * 2}" y="${q + cell * 2}" width="${3 * cell}" height="${3 * cell}" fill="#14211f"/>
-    `;
-  }
-
-  const bits = [];
-  for (let y = 0; y < modules; y += 1) {
-    for (let x = 0; x < modules; x += 1) {
-      const isFinder =
-        inFinder(x, y, 0, 0) || inFinder(x, y, modules - 7, 0) || inFinder(x, y, 0, modules - 7);
-      if (isFinder) continue;
-      const seed = chars[(x + y) % chars.length] ?? 31;
-      if ((x * 3 + y * 5 + seed) % 4 !== 0) continue;
-      bits.push(`<rect x="${x * cell}" y="${y * cell}" width="${cell}" height="${cell}" fill="#14211f"/>`);
-    }
-  }
-
-  return svgUrl(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" role="img">
-      <rect width="${size}" height="${size}" fill="#fff"/>
-      ${finder(0, 0)}
-      ${finder(modules - 7, 0)}
-      ${finder(0, modules - 7)}
-      ${bits.join("")}
-    </svg>
-  `);
+function revealStep(step) {
+  const current = quotePanels.indexOf(step);
+  quotePanels.forEach((key, index) => {
+    const selected = key === "extra" ? state.enabledExtras.size > 0 : Boolean(picked[key]);
+    const open = index === current || selected;
+    const panel = document.querySelector(`[data-panel="${key}"]`);
+    const button = document.querySelector(`[data-collapse="${key}"]`);
+    if (!panel || !button) return;
+    panel.classList.toggle("is-collapsed", !open);
+    button.setAttribute("aria-expanded", String(open));
+  });
 }
 
 function activeCategory() {
@@ -420,7 +398,13 @@ function renderCategories() {
       state.serviceIds = new Set(firstService ? [firstService.id] : []);
       if (firstService) setWarrantyFromServices();
       state.brandId = availableBrands()[0]?.id ?? "other";
+      picked.category = true;
+      picked.service = false;
+      picked.brand = false;
+      picked.warranty = false;
+      picked.quote = false;
       render();
+      revealStep("service");
     });
   });
 
@@ -433,7 +417,13 @@ function renderCategories() {
       state.serviceIds = new Set(first ? [first.id] : []);
       if (first) setWarrantyFromServices();
       state.brandId = availableBrands()[0]?.id ?? "other";
+      picked.category = true;
+      picked.service = false;
+      picked.brand = false;
+      picked.warranty = false;
+      picked.quote = false;
       render();
+      revealStep("service");
     });
   });
 }
@@ -476,7 +466,10 @@ function renderServices() {
       if (!availableBrands().some((brand) => brand.id === state.brandId)) {
         state.brandId = availableBrands()[0]?.id ?? "other";
       }
+      picked.category = true;
+      picked.service = true;
       render();
+      revealStep(nextOpenStep(picked.brand ? "extra" : "brand"));
     });
   });
 }
@@ -502,7 +495,9 @@ function renderBrands() {
   document.querySelectorAll("[data-brand]").forEach((button) => {
     button.addEventListener("click", () => {
       state.brandId = button.dataset.brand;
+      picked.brand = true;
       render();
+      revealStep(nextOpenStep("extra"));
     });
   });
 }
@@ -550,7 +545,9 @@ function renderExtras() {
         state.enabledExtras.delete(input.dataset.extra);
       }
       input.closest(".extra-item")?.classList.toggle("is-active", input.checked);
+      picked.extra = state.enabledExtras.size > 0;
       void renderQuote();
+      revealStep(nextOpenStep(state.enabledExtras.size ? "warranty" : "extra"));
     });
   });
 }
@@ -572,8 +569,11 @@ function renderWarrantyOptions() {
   document.querySelectorAll("[data-warranty-days]").forEach((button) => {
     button.addEventListener("click", () => {
       state.warrantyDays = Number(button.dataset.warrantyDays);
+      picked.warranty = true;
+      picked.quote = true;
       renderWarrantyOptions();
       renderQuote();
+      revealStep("quote");
     });
   });
 }
@@ -621,7 +621,7 @@ async function createReceipt(signatureDataUrl) {
     total: receipt.amount,
     warrantyDays: receipt.warrantyDays,
     warrantyExpire: receipt.warrantyExpireDate,
-    claimText: "收据已保存。微信扫码领取尚未接入，请联系门店获取凭证。",
+    claimText: "收据已保存在师傅端，可在历史报价中查看。",
     signatureDataUrl: receipt.signatureDataUrl,
     qrUrl: "",
     lines: [
@@ -641,8 +641,6 @@ function renderReceipt(receipt) {
   els.receiptWarrantyExpire.textContent = receipt.warrantyExpire;
   els.receiptTotal.textContent = money(receipt.total);
   els.receiptSignature.src = receipt.signatureDataUrl;
-  els.receiptQr.hidden = !receipt.qrUrl;
-  if (receipt.qrUrl) els.receiptQr.src = receipt.qrUrl;
   els.receiptClaimHint.textContent = receipt.claimText;
   els.receiptLines.innerHTML = receipt.lines
     .map(
@@ -844,6 +842,7 @@ els.searchInput.addEventListener("input", (event) => {
     state.serviceIds.clear();
   }
   render();
+  if (state.query.trim()) revealStep(nextOpenStep(picked.brand ? "extra" : "service"));
 });
 
 els.citySelect.addEventListener("change", (event) => {

@@ -441,10 +441,22 @@ function presentReceipt(receipt, signaturePath) {
     excludes: receipt.excludes || "",
     lines: (receipt.lines || []).map((row) => ({ label: row.label, value: money(row.amount) })),
     signaturePath: signaturePath || "",
-    claimText: "收据已保存。微信扫码领取尚未接入，请联系门店获取凭证。",
+    claimText: "收据已保存在师傅端，可在历史报价中查看。",
     voided: Boolean(receipt.voided),
     statusText: receipt.voided ? "已作废" : "已开具",
   };
+}
+
+function collapsedPanels(picked, extraSelected, step) {
+  const panels = ["category", "service", "brand", "extra", "warranty", "quote"];
+  const flags = picked || {};
+  const current = panels.indexOf(step);
+  const collapsed = {};
+  panels.forEach((key, index) => {
+    const selected = key === "extra" ? Boolean(extraSelected) : Boolean(flags[key]);
+    collapsed[key] = !(index === current || selected);
+  });
+  return collapsed;
 }
 
 function historyItem(receipt) {
@@ -481,6 +493,7 @@ module.exports = {
   roleLabel,
   permissionLabel,
   presentReceipt,
+  collapsedPanels,
   historyItem,
   warrantyFromServices,
   selectedServices,

@@ -19,7 +19,7 @@ Page({
     extras: [],
     warrantyOptions: [],
     searchMounted: true,
-    collapsed: {},
+    collapsed: model.collapsedPanels(null, false, "category"),
     categoryCount: "",
     serviceTitle: "常用项目",
     resultCount: "",
@@ -43,6 +43,7 @@ Page({
   },
 
   onLoad() {
+    this.picked = {};
     this.applyLayout();
   },
 
@@ -246,6 +247,17 @@ Page({
     this.setData({ collapsed });
   },
 
+  syncPanels(step) {
+    const extraOn = Boolean(this.selection && this.selection.extraIds && this.selection.extraIds.length);
+    this.setData({ collapsed: model.collapsedPanels(this.picked, extraOn, step) });
+  },
+
+  nextOpenStep(fallback) {
+    if (this.picked && this.picked.quote) return "quote";
+    if (this.picked && this.picked.warranty) return "warranty";
+    return fallback;
+  },
+
   onGroup(event) {
     const groupId = event.currentTarget.dataset.id;
     const first = (this.catalog.categories || []).find((category) => model.groupForCategory(category).id === groupId && this.catalog.services.some((service) => service.categoryId === category.id));
@@ -261,6 +273,8 @@ Page({
     });
     this.remountSearch();
     this.renderView();
+    this.picked = { category: true };
+    this.syncPanels("service");
   },
 
   onCategory(event) {
@@ -275,6 +289,8 @@ Page({
     });
     this.remountSearch();
     this.renderView();
+    this.picked = { category: true };
+    this.syncPanels("service");
   },
 
   remountSearch() {
@@ -297,11 +313,16 @@ Page({
     const brands = model.availableBrands(this.catalog, service.categoryId);
     if (!brands.some((brand) => brand.id === this.selection.brandId)) this.selection.brandId = brands[0] ? brands[0].id : "";
     this.renderView();
+    this.picked = Object.assign({}, this.picked, { category: true, service: true });
+    const brandFallback = this.picked.brand ? "extra" : "brand";
+    this.syncPanels(this.nextOpenStep(brandFallback));
   },
 
   onBrand(event) {
     this.selection = Object.assign({}, this.selection, { brandId: event.currentTarget.dataset.id });
     this.renderView();
+    this.picked = Object.assign({}, this.picked, { brand: true });
+    this.syncPanels(this.nextOpenStep("extra"));
   },
 
   onExtra(event) {
@@ -315,11 +336,16 @@ Page({
     else ids.splice(index, 1);
     this.selection = Object.assign({}, this.selection, { extraIds: ids });
     this.renderView();
+    const extraOn = Boolean(this.selection.extraIds && this.selection.extraIds.length);
+    this.picked = Object.assign({}, this.picked, { extra: extraOn });
+    this.syncPanels(this.nextOpenStep(extraOn ? "warranty" : "extra"));
   },
 
   onWarranty(event) {
     this.selection = Object.assign({}, this.selection, { warrantyDays: Number(event.currentTarget.dataset.days) });
     this.renderView();
+    this.picked = Object.assign({}, this.picked, { warranty: true, quote: true });
+    this.syncPanels("quote");
   },
 
   onSearch(event) {
@@ -335,6 +361,10 @@ Page({
     }
     this.selection = draft;
     this.renderView();
+    if (String(this.selection.query || "").trim()) {
+      const fallback = this.picked && this.picked.brand ? "extra" : "service";
+      this.syncPanels(this.nextOpenStep(fallback));
+    }
   },
 
   onCityChange(event) {

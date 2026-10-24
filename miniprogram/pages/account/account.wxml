@@ -1,6 +1,6 @@
 <scroll-view class="page" scroll-y>
   <view class="profile">
-    <view class="avatar">壹</view>
+    <view class="avatar" bindtap="onDebugEntry">壹</view>
     <text class="profile-name">{{profileName}}</text>
     <text class="muted">{{profileStatus}}</text>
   </view>
@@ -22,7 +22,7 @@
 
   <button wx:if="{{loggedIn}}" class="secondary logout" bindtap="onLogout">退出登录</button>
 
-  <view class="card">
+  <view class="card" wx:if="{{showDebugTools}}">
     <text class="card-title">报价接口</text>
     <text class="muted">指向正在运行的 local-backend。开发者工具需关闭合法域名校验；本工程 project.config.json 已设置 urlCheck 为 false。</text>
     <text class="label">接口根地址</text>
@@ -40,7 +40,7 @@
     </view>
   </view>
 
-  <view class="card">
+  <view class="card" wx:if="{{showDebugTools}}">
     <text class="card-title">演示账号</text>
     <text class="muted">师傅 18800000002 / 123456</text>
     <text class="muted">管理员 18800000001 / 123456</text>

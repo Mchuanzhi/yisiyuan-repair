@@ -13,11 +13,16 @@ Page({
     useMock: false,
     loggingIn: false,
     message: "",
+    showDebugTools: false,
   },
 
   onShow() {
     const state = getApp().globalData;
-    this.setData({ apiBase: state.apiBase, useMock: state.useMock });
+    this.setData({
+      apiBase: state.apiBase,
+      useMock: state.useMock,
+      showDebugTools: this.debugToolsVisible(),
+    });
     const refresh = state.token ? api.refreshMe().catch(() => null) : Promise.resolve(null);
     refresh.then(() => this.renderUser());
   },
@@ -30,6 +35,35 @@ Page({
       profileStatus: model.roleLabel(user),
       permission: model.permissionLabel(user),
     });
+  },
+
+  isDevelopBuild() {
+    try {
+      const info = wx.getAccountInfoSync();
+      return Boolean(info && info.miniProgram && info.miniProgram.envVersion === "develop");
+    } catch (error) {
+      return false;
+    }
+  },
+
+  debugToolsVisible() {
+    try {
+      if (getApp().globalData.showDebugTools) return true;
+    } catch (error) {}
+    return this.isDevelopBuild();
+  },
+
+  onDebugEntry() {
+    if (this.data.showDebugTools) return;
+    const now = Date.now();
+    if (!this._debugTap || now - this._debugTap.start > 3000) this._debugTap = { start: now, count: 0 };
+    this._debugTap.count += 1;
+    if (this._debugTap.count < 5) return;
+    this._debugTap = null;
+    try {
+      getApp().globalData.showDebugTools = true;
+    } catch (error) {}
+    this.setData({ showDebugTools: true, message: "已显示接口与演示设置" });
   },
 
   onMobile(event) {
