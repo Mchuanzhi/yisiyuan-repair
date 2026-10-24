@@ -335,6 +335,13 @@ for (const [name, draw] of Object.entries(categories)) {
   writePng(path.join(root, "images/categories", `${name}.png`), card(draw));
 }
 
+const windowsReserved = new Set(["con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"]);
+
+function brandPngName(id) {
+  const base = String(id).toLowerCase();
+  return (windowsReserved.has(base) ? `${base}-brand` : base) + ".png";
+}
+
 for (const [id, label, color] of brands) {
   const canvas = new Canvas(320, 144);
   const ink = hex(color);
@@ -345,7 +352,7 @@ for (const [id, label, color] of brands) {
   canvas.line(58, 58, 76, 78, 6, ink);
   const scale = label.length > 6 ? 3 : 4;
   canvas.text(label, 96, 58, scale, ink);
-  writePng(path.join(root, "images/brands", `${id}.png`), canvas);
+  writePng(path.join(root, "images/brands", brandPngName(id)), canvas);
 }
 
 console.log("wrote miniprogram png assets");

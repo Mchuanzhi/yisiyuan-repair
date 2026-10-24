@@ -95,6 +95,13 @@ function assertMockMath() {
   assert.equal(catalog.categories.find((item) => item.id === "air").image, "/images/categories/air.png");
   assert.equal(model.categoryImage({ id: "air", image: "data:image/svg+xml,abc" }), "/images/categories/air.png");
   assert.equal(model.brandImage({ id: "gree", logo: "data:image/png;base64,aaaa" }), "/images/brands/gree.png");
+  assert.equal(model.brandImage({ id: "aux" }), "/images/brands/aux-brand.png");
+  assert.equal(fs.existsSync(path.join(root, "images/brands/aux.png")), false);
+  assertPng("images/brands/aux-brand.png");
+  const reserved = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+  for (const file of fs.readdirSync(path.join(root, "images/brands"))) {
+    assert.equal(reserved.test(path.parse(file).name), false, file);
+  }
   const view = model.presentLists(catalog, model.blankState());
   assert.equal(view.selection.serviceIds[0], "air-basic");
   assert.equal(view.canQuote, true);

@@ -12,7 +12,7 @@ const BRAND_IMAGES = {
   gree: "/images/brands/gree.png",
   midea: "/images/brands/midea.png",
   haier: "/images/brands/haier.png",
-  aux: "/images/brands/aux.png",
+  aux: "/images/brands/aux-brand.png",
   siemens: "/images/brands/siemens.png",
   other: "/images/brands/other.png",
 };
