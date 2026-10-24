@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "历史报价",
+  "navigationBarBackgroundColor": "#EAF6FF",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#F4F4FA"
+}

@@ -1,0 +1,30 @@
+<view class="page">
+  <scroll-view class="sheet" scroll-y>
+    <view class="summary">
+      <view class="summary-copy">
+        <text class="summary-name">{{serviceName}}</text>
+        <text class="summary-sub">{{warrantyText}}</text>
+      </view>
+      <text class="summary-total">{{totalText}}</text>
+    </view>
+    <canvas
+      type="2d"
+      id="signatureCanvas"
+      class="pad"
+      disable-scroll="{{true}}"
+      catchtouchstart="onTouchStart"
+      catchtouchmove="onTouchMove"
+      catchtouchend="onTouchEnd"
+      catchtouchcancel="onTouchEnd"
+    ></canvas>
+    <view class="field">
+      <text class="field-label">客户姓名</text>
+      <input class="field-input" maxlength="40" placeholder="请输入收据上的客户姓名" value="{{customerName}}" bindinput="onName" />
+    </view>
+    <text class="hint {{hintError ? 'is-error' : ''}}">{{hint}}</text>
+    <view class="actions">
+      <button class="secondary" bindtap="onClear">重签</button>
+      <button class="primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="onSubmit">生成收据</button>
+    </view>
+  </scroll-view>
+</view>

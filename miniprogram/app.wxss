@@ -1,0 +1,92 @@
+page {
+  height: 100vh;
+  min-height: 100vh;
+  background: #f4f4fa;
+  color: #253352;
+  font-size: 28rpx;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+  line-height: 1.4;
+  font-size: 28rpx;
+  background: transparent;
+}
+
+button::after {
+  border: 0;
+}
+
+.primary,
+.secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 94rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 31rpx;
+  font-size: 28rpx;
+  font-weight: 650;
+}
+
+.primary {
+  color: #fff;
+  background: linear-gradient(110deg, #298bff, #6258ff);
+  box-shadow: 0 8rpx 20rpx rgba(82, 102, 238, 0.18);
+}
+
+.primary[disabled] {
+  opacity: 0.55;
+  color: #fff;
+  background: linear-gradient(110deg, #298bff, #6258ff);
+}
+
+.secondary {
+  color: #4258d7;
+  background: #fff;
+  border: 2rpx solid #dfe5ff;
+}
+
+.muted {
+  color: #777f96;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
+.panel {
+  margin-bottom: 12rpx;
+}
+
+.section-toggle {
+  min-height: 85rpx;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.section-title {
+  flex: 1;
+  font-size: 33rpx;
+  font-weight: 750;
+}
+
+.section-meta {
+  color: #777f96;
+  font-size: 21rpx;
+}
+
+.chevron {
+  width: 14rpx;
+  height: 14rpx;
+  border-right: 3rpx solid #777f96;
+  border-bottom: 3rpx solid #777f96;
+  transform: rotate(45deg);
+  margin-bottom: 6rpx;
+}
+
+.chevron.is-collapsed {
+  transform: rotate(-45deg);
+  margin-bottom: 0;
+  margin-top: 6rpx;
+}

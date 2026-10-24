@@ -1,0 +1,38 @@
+{
+  "pages": [
+    "pages/quote/quote",
+    "pages/history/history",
+    "pages/signature/signature",
+    "pages/receipt/receipt",
+    "pages/account/account"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#EAF6FF",
+    "navigationBarTitleText": "壹思源维修",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F4F4FA",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#8A93AA",
+    "selectedColor": "#5264ED",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/quote/quote",
+        "text": "查价报价",
+        "iconPath": "images/tab-quote.png",
+        "selectedIconPath": "images/tab-quote-active.png"
+      },
+      {
+        "pagePath": "pages/history/history",
+        "text": "历史报价",
+        "iconPath": "images/tab-history.png",
+        "selectedIconPath": "images/tab-history-active.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

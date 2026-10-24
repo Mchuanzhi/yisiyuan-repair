@@ -1,0 +1,51 @@
+<scroll-view class="page" scroll-y>
+  <view wx:if="{{missing}}" class="empty">
+    <text>还没有可展示的收据</text>
+    <button class="primary back" bindtap="goQuote">返回查价</button>
+  </view>
+  <view wx:else class="paper">
+    <view class="paper-top">
+      <view>
+        <text class="brand">壹思源维修</text>
+        <text class="paper-title">维修服务收据</text>
+      </view>
+      <view class="stamp">
+        <text>壹思源维修</text>
+        <text class="stamp-strong">电子章</text>
+      </view>
+    </view>
+    <view class="info">
+      <view class="info-row"><text class="muted">收据编号</text><text>{{no}}</text></view>
+      <view class="info-row"><text class="muted">维修时间</text><text>{{time}}</text></view>
+      <view class="info-row"><text class="muted">服务城市</text><text>{{city}}</text></view>
+      <view class="info-row"><text class="muted">保修期限</text><text>{{warrantyText}}</text></view>
+      <view class="info-row"><text class="muted">保修到期</text><text>{{warrantyExpire}}</text></view>
+      <view class="info-row"><text class="muted">客户</text><text>{{customerName}}</text></view>
+      <view class="info-row"><text class="muted">服务项目</text><text>{{serviceName}}</text></view>
+      <view class="info-row"><text class="muted">维修品牌</text><text>{{brandName}}</text></view>
+    </view>
+    <view class="lines">
+      <view wx:for="{{lines}}" wx:key="label" class="info-row">
+        <text class="muted">{{item.label}}</text>
+        <text>{{item.value}}</text>
+      </view>
+    </view>
+    <view class="total">
+      <text>实收合计</text>
+      <text class="total-value">{{total}}</text>
+    </view>
+    <view wx:if="{{includes}}" class="note"><text class="muted">包含</text><text>{{includes}}</text></view>
+    <view wx:if="{{excludes}}" class="note"><text class="muted">不含</text><text>{{excludes}}</text></view>
+    <view class="sign-block">
+      <text class="muted">客户签名</text>
+      <image wx:if="{{signaturePath}}" class="sign-image" src="{{signaturePath}}" mode="aspectFit" />
+      <text wx:else class="muted">签名已保存</text>
+    </view>
+    <text class="claim">{{claimText}}</text>
+    <text wx:if="{{voided}}" class="voided">该收据已作废</text>
+  </view>
+  <view class="actions">
+    <button class="secondary" bindtap="goHistory">历史报价</button>
+    <button class="primary" bindtap="goQuote">返回查价</button>
+  </view>
+</scroll-view>

@@ -10,3 +10,4 @@ local-backend/data/*.sqlite-*
 *.sqlite
 *.sqlite-journal
 .scratch/
+miniprogram/project.private.config.json

@@ -1,0 +1,28 @@
+<view class="page" style="height: {{pageHeight}}px;">
+  <scroll-view class="scroll" style="height: {{pageHeight}}px;" scroll-y>
+    <view class="head">
+      <text class="count">{{countText}}</text>
+      <text class="muted">{{subtitle}}</text>
+    </view>
+    <view wx:if="{{emptyText}}" class="empty">
+      <text>{{emptyText}}</text>
+      <button wx:if="{{needLogin}}" class="primary login" bindtap="openAccount">去登录</button>
+    </view>
+    <view wx:else>
+      <view wx:for="{{items}}" wx:key="no" class="card" data-no="{{item.no}}" bindtap="onOpen">
+        <view class="row">
+          <text class="name">{{item.customerName}}</text>
+          <text class="time">{{item.repairTime}}</text>
+        </view>
+        <view class="row">
+          <text class="service">{{item.serviceName}}</text>
+          <text class="amount">{{item.amountText}}</text>
+        </view>
+        <view class="row">
+          <text class="no">{{item.no}}</text>
+          <text class="status">{{item.statusText}}</text>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>
