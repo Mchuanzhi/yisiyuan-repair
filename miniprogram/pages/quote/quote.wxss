@@ -1,8 +1,16 @@
 .page {
-  height: 100%;
+  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: linear-gradient(160deg, #eaf6ff 0%, #e8e5ff 42%, #f4f4fa 78%);
+  box-sizing: border-box;
+}
+
+.topbar,
+.dock {
+  flex-shrink: 0;
 }
 
 .topbar {
@@ -70,9 +78,9 @@
 }
 
 .scroll {
-  flex: 1;
-  height: 0;
-  min-height: 0;
+  flex: 1 1 auto;
+  height: 60vh;
+  min-height: 240px;
 }
 
 .status {

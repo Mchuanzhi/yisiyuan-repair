@@ -1,4 +1,4 @@
-<view class="page">
+<view class="page" style="height: {{pageHeight}}px;">
   <view class="topbar">
     <view class="brand">
       <text class="eyebrow">壹思源 · 师傅工作台</text>
@@ -15,10 +15,11 @@
     </view>
   </view>
 
-  <scroll-view class="scroll" scroll-y enhanced="{{false}}" show-scrollbar="{{false}}">
+  <scroll-view class="scroll" style="height: {{scrollHeight}}px;" scroll-y show-scrollbar="{{false}}">
     <view class="status">
       <text class="status-text">{{catalogMessage}}</text>
-      <button class="refresh" bindtap="onRefresh">刷新数据</button>
+      <button wx:if="{{loadFailed}}" class="refresh" bindtap="openDemo">打开本地演示</button>
+      <button wx:else class="refresh" bindtap="onRefresh">刷新数据</button>
     </view>
 
     <view class="welcome">

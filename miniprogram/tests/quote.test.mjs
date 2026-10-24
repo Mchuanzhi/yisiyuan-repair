@@ -8,6 +8,7 @@ import { createServer } from "../../local-backend/src/server.mjs";
 
 const require = createRequire(import.meta.url);
 const model = require("../utils/model.js");
+const layout = require("../utils/layout.js");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function read(file) {
@@ -54,6 +55,12 @@ function assertStructure() {
   assert.equal(wxml.includes(":has("), false);
   assert.match(read("pages/quote/quote.wxml"), /<picker/);
   assert.match(read("pages/quote/quote.wxml"), /<switch/);
+  assert.match(read("pages/quote/quote.wxml"), /打开本地演示/);
+  assert.match(read("pages/quote/quote.wxml"), /scrollHeight/);
+  assert.equal(read("pages/quote/quote.wxss").includes("height: 0"), false);
+  assert.equal(read("pages/history/history.wxss").includes("height: 0"), false);
+  assert.match(read("pages/quote/quote.wxss"), /100vh/);
+  assert.match(read("pages/history/history.wxss"), /100vh/);
   assert.match(read("pages/signature/signature.wxml"), /type="2d"/);
   assert.match(read("pages/signature/signature.wxml"), /catchtouchstart/);
   assert.match(read("pages/signature/signature.js"), /pixelRatio/);
@@ -92,6 +99,15 @@ function assertMockMath() {
   assert.equal(view.selection.serviceIds[0], "air-basic");
   assert.equal(view.canQuote, true);
   assert.equal(view.groups.length, 4);
+  const empty = model.presentLists(model.normalizeCatalog({}), model.blankState());
+  assert.equal(empty.canQuote, false);
+  assert.equal(empty.groups.length, 4);
+  const frame = layout.quoteFrame(375, 667);
+  assert.equal(frame.pageHeight, 667);
+  assert.ok(frame.scrollHeight >= 280);
+  assert.ok(frame.scrollHeight < frame.pageHeight);
+  assert.equal(layout.pageFrame(390, 700).pageHeight, 700);
+  assert.equal(layout.quoteFrame(375, 800, 800).pageHeight, 750);
 }
 
 async function assertServerParity() {

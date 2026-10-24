@@ -1,9 +1,14 @@
 const model = require("../../utils/model");
 const api = require("../../utils/api");
+const layout = require("../../utils/layout");
+const initialFrame = layout.quoteFrame(375, 667);
 
 Page({
   data: {
+    pageHeight: initialFrame.pageHeight,
+    scrollHeight: initialFrame.scrollHeight,
     catalogMessage: "正在加载报价",
+    loadFailed: false,
     cities: [],
     cityIndex: 0,
     cityName: "上海",
@@ -37,16 +42,39 @@ Page({
     confirmText: "登录后签名开据",
   },
 
+  onLoad() {
+    this.applyLayout();
+  },
+
   onShow() {
-    this.syncAccount();
-    if (!this.catalog || getApp().globalData.catalogDirty) {
-      getApp().globalData.catalogDirty = false;
-      this.loadCatalog();
+    this.applyLayout();
+    try {
+      this.syncAccount();
+    } catch (error) {
+      this.setData({ confirmText: "登录后签名开据" });
     }
+    let dirty = false;
+    try {
+      dirty = !this.catalog || getApp().globalData.catalogDirty;
+      if (getApp().globalData.catalogDirty) getApp().globalData.catalogDirty = false;
+    } catch (error) {
+      dirty = !this.catalog;
+    }
+    if (dirty) this.loadCatalog();
   },
 
   onPullDownRefresh() {
+    try {
+      if (this.data.loadFailed && getApp().globalData.useMock) getApp().globalData.useMock = false;
+    } catch (error) {}
     this.loadCatalog().then(() => wx.stopPullDownRefresh(), () => wx.stopPullDownRefresh());
+  },
+
+  applyLayout() {
+    try {
+      const frame = layout.quoteLayout();
+      if (frame.pageHeight > 0 && frame.scrollHeight > 0) this.setData(frame);
+    } catch (error) {}
   },
 
   syncAccount() {
@@ -77,23 +105,60 @@ Page({
       const mock = getApp().globalData.useMock;
       let message = catalog.services.length ? "价格与 local-backend 同步" : "暂无已上架服务，请联系管理员录入";
       if (mock) message = catalog.services.length ? "当前使用本地演示数据" : "本地演示数据为空";
-      this.setData({ catalogMessage: message });
+      this.setData({ catalogMessage: message, loadFailed: false });
       this.renderView();
-    }).catch((error) => {
-      this.catalog = model.normalizeCatalog({});
-      this.catalogReady = false;
+    }).catch((error) => this.failCatalog(error));
+  },
+
+  failCatalog(error) {
+    const offline = !error || !error.status;
+    let base = "接口";
+    try {
+      base = getApp().globalData.apiBase || base;
+    } catch (readError) {}
+    if (offline) {
+      try {
+        getApp().globalData.useMock = true;
+      } catch (flagError) {}
+      try {
+        this.catalog = model.normalizeCatalog(model.publicCatalog());
+      } catch (mockError) {
+        this.catalog = model.normalizeCatalog({});
+      }
+      this.catalogReady = true;
       this.setData({
-        catalogMessage: "加载失败：" + error.message + "（" + getApp().globalData.apiBase + "）",
-        quoteReady: false,
-        quoteTotal: "—",
-        dockTotal: "—",
+        loadFailed: true,
+        catalogMessage: "连不上 " + base + "，已改用本地演示数据",
       });
       this.renderView();
+      return;
+    }
+    this.catalog = model.normalizeCatalog({});
+    this.catalogReady = false;
+    this.setData({
+      loadFailed: true,
+      catalogMessage: "加载失败：" + (error.message || "请稍后重试") + "（" + base + "）",
+      quoteReady: false,
+      quoteTotal: "—",
+      dockTotal: "—",
+      quoteStatus: error.message || "加载失败",
     });
+    this.renderView();
   },
 
   renderView() {
     if (!this.catalog) return;
+    try {
+      this.paintCatalog();
+    } catch (error) {
+      this.setData({
+        loadFailed: true,
+        catalogMessage: "页面数据异常：" + error.message,
+      });
+    }
+  },
+
+  paintCatalog() {
     const view = model.presentLists(this.catalog, this.selection || model.blankState());
     this.selection = view.selection;
     this.view = view;
@@ -133,7 +198,12 @@ Page({
   },
 
   fetchQuote(version) {
-    if (!this.catalogReady || !this.view || !this.view.canQuote) {
+    if (!this.catalogReady) {
+      if (version !== this._quoteVersion) return;
+      this.setData({ quoteReady: false, quoteStatus: "正在同步报价…" });
+      return;
+    }
+    if (!this.view || !this.view.canQuote) {
       if (version !== this._quoteVersion) return;
       this._quoteTotal = 0;
       this.setData({
@@ -279,6 +349,10 @@ Page({
   },
 
   openAccount() {
+    wx.navigateTo({ url: "/pages/account/account" });
+  },
+
+  openDemo() {
     wx.navigateTo({ url: "/pages/account/account" });
   },
 

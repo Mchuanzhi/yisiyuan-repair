@@ -1,8 +1,11 @@
 const model = require("../../utils/model");
 const api = require("../../utils/api");
+const layout = require("../../utils/layout");
+const initialFrame = layout.pageFrame(375, 667);
 
 Page({
   data: {
+    pageHeight: initialFrame.pageHeight,
     items: [],
     countText: "0 条",
     subtitle: "",
@@ -10,8 +13,20 @@ Page({
     needLogin: false,
   },
 
+  onLoad() {
+    this.applyLayout();
+  },
+
   onShow() {
+    this.applyLayout();
     this.load();
+  },
+
+  applyLayout() {
+    try {
+      const frame = layout.historyLayout();
+      if (frame.pageHeight > 0) this.setData({ pageHeight: frame.pageHeight });
+    } catch (error) {}
   },
 
   onPullDownRefresh() {

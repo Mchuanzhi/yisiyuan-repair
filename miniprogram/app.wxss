@@ -1,5 +1,6 @@
 page {
-  height: 100%;
+  height: 100vh;
+  min-height: 100vh;
   background: #f4f4fa;
   color: #253352;
   font-size: 28rpx;

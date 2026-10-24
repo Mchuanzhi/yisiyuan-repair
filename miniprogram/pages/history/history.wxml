@@ -1,5 +1,5 @@
-<view class="page">
-  <scroll-view class="scroll" scroll-y>
+<view class="page" style="height: {{pageHeight}}px;">
+  <scroll-view class="scroll" style="height: {{pageHeight}}px;" scroll-y>
     <view class="head">
       <text class="count">{{countText}}</text>
       <text class="muted">{{subtitle}}</text>
