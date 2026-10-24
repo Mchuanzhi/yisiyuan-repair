@@ -251,6 +251,42 @@ function clockIcon(color, filled) {
   return canvas;
 }
 
+function personIcon(color, filled) {
+  const canvas = new Canvas(81, 81);
+  const ink = hex(color);
+  const scale = 2.2;
+  const ox = 14.1;
+  const oy = 6.4;
+  const stroke = 4;
+  const headX = ox + 12 * scale;
+  const headY = oy + 8 * scale;
+  const headR = 4 * scale;
+  const bodyX = ox + 12 * scale;
+  const bodyY = oy + 19 * scale;
+  const bodyR = 8 * scale;
+  if (filled) {
+    canvas.fillCircle(headX, headY, headR, ink, 28);
+    for (let y = Math.floor(bodyY); y <= bodyY + bodyR + 2; y += 1) {
+      for (let x = Math.floor(bodyX - bodyR); x <= bodyX + bodyR; x += 1) {
+        if ((x - bodyX) ** 2 + (y - bodyY) ** 2 <= bodyR * bodyR) canvas.set(x, y, ink, 28);
+      }
+    }
+  }
+  canvas.strokeCircle(headX, headY, headR, stroke, ink);
+  const cap = 2 * scale;
+  canvas.line(bodyX - bodyR, bodyY, bodyX - bodyR, bodyY + cap, stroke, ink);
+  canvas.line(bodyX + bodyR, bodyY, bodyX + bodyR, bodyY + cap, stroke, ink);
+  let previous = null;
+  const steps = 36;
+  for (let index = 0; index <= steps; index += 1) {
+    const theta = Math.PI - (Math.PI * index) / steps;
+    const point = [bodyX + bodyR * Math.cos(theta), bodyY + bodyR * Math.sin(theta)];
+    if (previous) canvas.line(previous[0], previous[1], point[0], point[1], stroke, ink);
+    previous = point;
+  }
+  return canvas;
+}
+
 const categories = {
   air: (canvas) => {
     const body = hex("#4263FF");
@@ -330,6 +366,8 @@ writePng(path.join(root, "images/tab-quote.png"), documentIcon("#8A93AA", false)
 writePng(path.join(root, "images/tab-quote-active.png"), documentIcon("#5264ED", true));
 writePng(path.join(root, "images/tab-history.png"), clockIcon("#8A93AA", false));
 writePng(path.join(root, "images/tab-history-active.png"), clockIcon("#5264ED", true));
+writePng(path.join(root, "images/tab-mine.png"), personIcon("#8A93AA", false));
+writePng(path.join(root, "images/tab-mine-active.png"), personIcon("#5264ED", true));
 
 for (const [name, draw] of Object.entries(categories)) {
   writePng(path.join(root, "images/categories", `${name}.png`), card(draw));

@@ -11,7 +11,6 @@
           <text class="city-value">{{cityName}}</text>
         </view>
       </picker>
-      <text class="mine" bindtap="openAccount">我的</text>
     </view>
   </view>
 

@@ -1,8 +1,11 @@
 const model = require("../../utils/model");
 const api = require("../../utils/api");
+const layout = require("../../utils/layout");
+const initialFrame = layout.pageFrame(375, 667);
 
 Page({
   data: {
+    pageHeight: initialFrame.pageHeight,
     profileName: "欢迎使用壹思源",
     profileStatus: "游客可查价，开具收据需师傅账号授权",
     permission: "未登录",
@@ -17,11 +20,24 @@ Page({
     loginLabel: "登录",
   },
 
+  onLoad() {
+    this.applyLayout();
+  },
+
   onShow() {
+    this.applyLayout();
     const state = getApp().globalData;
     this.setData({ apiBase: state.apiBase, useMock: state.useMock });
     const ready = state.sessionReady || Promise.resolve();
     ready.then(() => (state.token ? api.refreshMe().catch(() => null) : null)).then(() => this.renderUser());
+  },
+
+  applyLayout() {
+    try {
+      const box = layout.readWindow();
+      const frame = layout.pageFrame(box.windowWidth, box.windowHeight, box.screenHeight);
+      if (frame.pageHeight > 0) this.setData({ pageHeight: frame.pageHeight });
+    } catch (error) {}
   },
 
   renderUser() {

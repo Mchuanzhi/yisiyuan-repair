@@ -63,20 +63,6 @@
   font-weight: 650;
 }
 
-.mine {
-  min-width: 84rpx;
-  min-height: 84rpx;
-  padding: 0 12rpx;
-  border-radius: 28rpx;
-  background: #fff;
-  color: #4258d7;
-  font-size: 24rpx;
-  font-weight: 650;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .scroll {
   flex: 1 1 auto;
   height: 60vh;
