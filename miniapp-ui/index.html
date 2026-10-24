@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>壹思源维修报价小程序 UI</title>
+    <link rel="stylesheet" href="./styles.css?v=20260910-focus-fix" />
+    <link rel="stylesheet" href="./theme.css?v=20260910-multi" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="app" aria-label="壹思源维修报价小程序">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">壹思源 · 师傅工作台</p>
+            <h1>壹思源维修报价</h1>
+            <span class="staff-badge">透明报价 · 安心维修</span>
+          </div>
+          <label class="city-picker">
+            <span>城市</span>
+            <select id="citySelect" aria-label="选择城市">
+              <option value="shanghai">上海</option>
+              <option value="hangzhou">杭州</option>
+              <option value="suzhou">苏州</option>
+              <option value="hefei">合肥</option>
+            </select>
+          </label>
+        </header>
+
+        <div class="content">
+        <div class="data-status"><span id="catalogMessage" role="status">正在加载报价</span><button id="refreshCatalogBtn" type="button">刷新数据</button></div>
+        <section class="welcome-banner" aria-label="报价服务介绍">
+          <div><span class="welcome-label">REPAIR & CARE</span><h2>每一份报价<br />都清楚明白</h2><p>选项目 · 确认费用 · 签名留凭证</p></div>
+          <div class="hero-art" aria-hidden="true"><div class="hero-document"><span></span><i></i><i></i><b>✓</b></div></div>
+        </section>
+        <section class="search-wrap">
+          <label class="search">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input id="searchInput" type="search" placeholder="搜索空调漏水、更换电容、马桶维修" />
+          </label>
+        </section>
+
+          <section class="view is-active" id="priceView">
+            <section class="panel collapsible" data-panel="category">
+              <button class="section-toggle" type="button" data-collapse="category" aria-expanded="true">
+                <span>维修品类</span>
+                <strong id="categoryCount"></strong>
+                <i aria-hidden="true"></i>
+              </button>
+              <div class="section-body">
+                <div class="category-group-tabs" id="categoryGroupTabs" aria-label="一级维修类目"></div>
+                <div class="category-grid" id="categoryGrid"></div>
+              </div>
+            </section>
+
+            <section class="panel service-panel collapsible" data-panel="service">
+              <button class="section-toggle" type="button" data-collapse="service" aria-expanded="true">
+                <span id="serviceTitle">常用项目</span>
+                <strong id="resultCount"></strong>
+                <i aria-hidden="true"></i>
+              </button>
+              <div class="section-body">
+                <div class="service-list" id="serviceList"></div>
+              </div>
+            </section>
+
+            <section class="panel brand-panel collapsible" data-panel="brand">
+              <button class="section-toggle" type="button" data-collapse="brand" aria-expanded="true">
+                <span>品牌</span>
+                <strong id="brandCount"></strong>
+                <i aria-hidden="true"></i>
+              </button>
+              <div class="section-body">
+                <div class="brand-grid" id="brandGrid"></div>
+              </div>
+            </section>
+
+            <section class="panel collapsible" data-panel="extra">
+              <button class="section-toggle" type="button" data-collapse="extra" aria-expanded="true">
+                <span>特殊费用</span>
+                <strong>按现场勾选</strong>
+                <i aria-hidden="true"></i>
+              </button>
+              <div class="section-body">
+                <div class="extra-list" id="extraList"></div>
+              </div>
+            </section>
+
+            <section class="panel collapsible" data-panel="warranty">
+              <button class="section-toggle" type="button" data-collapse="warranty" aria-expanded="true">
+                <span>保修设置</span>
+                <strong id="warrantySummary">30天</strong>
+                <i aria-hidden="true"></i>
+              </button>
+              <div class="section-body">
+                <div class="warranty-options" id="warrantyOptions"></div>
+              </div>
+            </section>
+
+            <section class="quote-card inline-quote collapsible" data-panel="quote">
+              <button class="section-toggle quote-toggle" type="button" data-collapse="quote" aria-expanded="true">
+                <span>当前报价单</span>
+                <strong>同页实时更新</strong>
+                <i aria-hidden="true"></i>
+              </button>
+              <div class="section-body">
+                <div class="quote-head">
+                  <div>
+                    <p>客户确认报价</p>
+                    <h2 id="quoteServiceName">空调普通维修</h2>
+                  </div>
+                  <img id="quoteCategoryImage" alt="" />
+                </div>
+                <div class="quote-brand">
+                  <img id="quoteBrandLogo" alt="" />
+                  <div>
+                    <strong id="quoteBrandName">格力</strong>
+                    <span id="quoteCityName">上海市区价</span>
+                  </div>
+                </div>
+                <div class="price-total">
+                  <span>合计</span>
+                  <strong id="quoteTotal">¥0</strong>
+                </div>
+                <div class="breakdown" id="quoteBreakdown"></div>
+                <div class="quote-meta">
+                  <div>
+                    <span>包含内容</span>
+                    <strong id="quoteIncludes"></strong>
+                  </div>
+                  <div>
+                    <span>不含/另计</span>
+                    <strong id="quoteExcludes"></strong>
+                  </div>
+                  <div>
+                    <span>质保</span>
+                    <strong id="quoteWarranty"></strong>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section class="view" id="historyView">
+            <section class="panel">
+              <div class="section-title">
+                <h2>历史报价</h2>
+                <span id="historyCount">0 条</span>
+              </div>
+              <div class="history-list" id="historyList"></div>
+            </section>
+          </section>
+          <section class="view" id="mineView">
+            <section class="profile-card"><div class="profile-avatar" aria-hidden="true">壹</div><h2 id="profileName">欢迎使用壹思源</h2><p id="profileStatus">游客可查价，开具收据需师傅账号授权</p></section>
+            <section class="account-card"><h2>开具收据权限</h2><p id="receiptPermission">未登录</p><p>由管理员创建师傅账号并开通权限，师傅无法自行授权。</p></section>
+            <form class="account-card" id="staffLoginForm"><h2>内部人员登录</h2><label>手机号<input name="mobile" type="tel" autocomplete="username" required maxlength="11" /></label><label>密码<input name="password" type="password" autocomplete="current-password" required /></label><button class="primary-action" type="submit">登录</button></form>
+            <button class="secondary-action account-logout" id="staffLogoutBtn" type="button" hidden>退出登录</button>
+            <p class="account-message" id="accountMessage" role="status"></p>
+          </section>
+        </div>
+
+        <footer class="quote-dock" id="quoteDock">
+          <div><span>当前预估合计</span><strong id="dockTotal" aria-live="polite">¥0</strong></div>
+          <button class="primary-action" id="confirmQuoteBtn" type="button">确认报价 · 签名 <span aria-hidden="true">→</span></button>
+        </footer>
+
+        <nav class="bottom-nav" aria-label="底部主导航">
+          <button class="bottom-nav-item is-active" type="button" data-view="price" aria-pressed="true" aria-controls="priceView">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="4"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+            <span>查价报价</span>
+          </button>
+          <button class="bottom-nav-item" type="button" data-view="history" aria-pressed="false" aria-controls="historyView">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <span>历史报价</span>
+          </button>
+          <button class="bottom-nav-item" type="button" data-view="mine" aria-pressed="false" aria-controls="mineView"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg><span>我的</span></button>
+        </nav>
+
+        <section class="workflow-sheet" id="signatureSheet" hidden aria-label="客户手写签名">
+          <header class="sheet-header">
+            <button class="text-action" id="closeSignatureBtn" type="button">返回</button>
+            <h2>客户手写签名</h2>
+            <span></span>
+          </header>
+          <div class="sheet-content">
+            <section class="confirm-summary">
+              <div>
+                <span id="signatureServiceName">空调普通维修</span>
+                <small id="signatureWarranty">保修30天</small>
+              </div>
+              <strong id="signatureTotal">¥0</strong>
+            </section>
+            <canvas id="signatureCanvas" width="640" height="260" aria-label="客户签名区域"></canvas>
+            <label class="customer-field">客户姓名<input id="receiptCustomerName" type="text" maxlength="40" placeholder="请输入收据上的客户姓名" /></label>
+            <p class="signature-hint" id="signatureHint">请客户在上方空白处签名确认报价</p>
+            <div class="sheet-actions">
+              <button class="secondary-action" id="clearSignatureBtn" type="button">重签</button>
+              <button class="primary-action" id="generateReceiptBtn" type="button">内部人员生成收据</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="workflow-sheet" id="receiptSheet" hidden aria-label="电子收据">
+          <header class="sheet-header">
+            <button class="text-action" id="closeReceiptBtn" type="button">返回</button>
+            <h2>电子收据</h2>
+            <span></span>
+          </header>
+          <div class="sheet-content">
+            <article class="receipt-paper">
+              <div class="receipt-top">
+                <div>
+                  <p>壹思源维修</p>
+                  <h2>维修服务收据</h2>
+                </div>
+                <div class="stamp" aria-label="公司电子章">
+                  <span>壹思源维修</span>
+                  <strong>电子章</strong>
+                </div>
+              </div>
+              <div class="receipt-info">
+                <div>
+                  <span>收据编号</span>
+                  <strong id="receiptNo">YSY000000</strong>
+                </div>
+                <div>
+                  <span>维修时间</span>
+                  <strong id="receiptTime">-</strong>
+                </div>
+                <div>
+                  <span>服务城市</span>
+                  <strong id="receiptCity">-</strong>
+                </div>
+                <div>
+                  <span>保修期限</span>
+                  <strong id="receiptWarranty">-</strong>
+                </div>
+                <div>
+                  <span>保修到期</span>
+                  <strong id="receiptWarrantyExpire">-</strong>
+                </div>
+              </div>
+              <div class="receipt-lines" id="receiptLines"></div>
+              <div class="receipt-total">
+                <span>实收合计</span>
+                <strong id="receiptTotal">¥0</strong>
+              </div>
+              <div class="receipt-signature">
+                <div>
+                  <span>客户签名</span>
+                  <img id="receiptSignature" alt="客户签名" />
+                </div>
+                <div>
+                  <span>关注公众号领取</span>
+                  <img id="receiptQr" alt="收据二维码" />
+                  <small id="receiptClaimHint">先关注公众号，再授权登录领取；后续可在小程序查看</small>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js?v=20260910-search-fix"></script>
+  </body>
+</html>

@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>壹思源维修后台管理端</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./theme.css" />
+  </head>
+  <body>
+    <main class="admin-shell">
+      <aside class="sidebar" aria-label="后台导航">
+        <div class="brand-mark">
+          <span>壹</span>
+          <div>
+            <strong>壹思源维修</strong>
+            <small>报价管理后台</small>
+          </div>
+        </div>
+        <nav class="side-nav">
+          <button class="nav-item is-active" type="button" data-section="dashboard">
+            <span class="icon icon-dashboard" aria-hidden="true"></span>
+            数据总览
+          </button>
+          <button class="nav-item" type="button" data-section="prices">
+            <span class="icon icon-table" aria-hidden="true"></span>
+            报价项目
+          </button>
+          <button class="nav-item" type="button" data-section="assets">
+            <span class="icon icon-image" aria-hidden="true"></span>
+            品类品牌
+          </button>
+          <button class="nav-item" type="button" data-section="cities">
+            <span class="icon icon-location" aria-hidden="true"></span>
+            城市区域
+          </button>
+          <button class="nav-item" type="button" data-section="rules">
+            <span class="icon icon-rule" aria-hidden="true"></span>
+            特殊费用
+          </button>
+          <button class="nav-item" type="button" data-section="receipts">
+            <span class="icon icon-receipt" aria-hidden="true"></span>
+            收据记录
+          </button>
+          <button class="nav-item" type="button" data-section="wechat">
+            <span class="icon icon-wechat" aria-hidden="true"></span>
+            公众号领取
+          </button>
+          <button class="nav-item" type="button" data-section="permissions">
+            <span class="icon icon-lock" aria-hidden="true"></span>
+            权限设置
+          </button>
+          <button class="nav-item" type="button" data-section="preview">
+            <span class="icon icon-phone" aria-hidden="true"></span>
+            小程序预览
+          </button>
+        </nav>
+        <div class="side-note">
+          <strong>统一报价数据</strong>
+          <span>两端使用同一数据库</span>
+          <button class="ghost-action" id="refreshDataBtn" type="button">刷新数据库数据</button>
+        </div>
+      </aside>
+
+      <section class="main-area">
+        <header class="topbar">
+          <div>
+            <h1 id="pageTitle">数据总览</h1>
+            <p id="pageSubtitle">维护报价、品牌图片、城市规则和电子收据。</p>
+          </div>
+          <label class="global-search">
+            <span class="icon icon-search" aria-hidden="true"></span>
+            <input id="globalSearch" type="search" placeholder="搜索项目、品牌、城市、收据编号" />
+          </label>
+          <div class="operator">
+            <span id="operatorName">内部人员</span>
+            <strong id="operatorAvatar">YSY</strong>
+            <button class="logout-action" id="logoutBtn" type="button">退出</button>
+          </div>
+        </header>
+
+        <section class="workspace">
+          <p id="dataMessage" role="status"></p>
+          <section class="section-view is-active" id="dashboardSection">
+            <div class="metrics">
+              <article class="metric">
+                <span>报价项目</span>
+                <strong id="metricServices">0</strong>
+                <small id="metricPublished">已上架 0 项</small>
+              </article>
+              <article class="metric">
+                <span>品牌</span>
+                <strong id="metricBrands">0</strong>
+                <small>含专属配件价</small>
+              </article>
+              <article class="metric">
+                <span>城市规则</span>
+                <strong id="metricCities">0</strong>
+                <small>区域可单独调价</small>
+              </article>
+              <article class="metric">
+                <span>今日收据</span>
+                <strong id="metricReceiptCount">0</strong>
+                <small>已签名确认</small>
+              </article>
+            </div>
+            <div class="dashboard-grid">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>数据完整性</h2>
+                  <button class="icon-action" type="button" title="刷新">
+                    <span class="icon icon-refresh" aria-hidden="true"></span>
+                  </button>
+                </div>
+                <div class="todo-list" id="catalogHealth">
+                  <div>
+                    <strong>空调电脑板</strong>
+                    <span>建议补充品牌配件价：格力、美的、海尔。</span>
+                  </div>
+                  <div>
+                    <strong>水电管道</strong>
+                    <span>缺少品牌维度，可设置为“其他品牌”默认规则。</span>
+                  </div>
+                  <div>
+                    <strong>城市调价</strong>
+                    <span>上海浦东新区、静安区可建立独立区域价格。</span>
+                  </div>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>最近收据</h2>
+                  <button class="text-link" type="button">查看全部</button>
+                </div>
+                <div class="activity-list" id="recentReceipts">
+                  <div><span>10:38</span><strong>修改“更换电容/传感器”配件估价</strong></div>
+                  <div><span>09:52</span><strong>新增“苏州工业园区”区域规则</strong></div>
+                  <div><span>昨天</span><strong>上传“油烟机普通清洗”品类图</strong></div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="section-view" id="pricesSection">
+            <div class="table-layout">
+              <section class="panel data-panel">
+                <div class="panel-head">
+                  <h2>报价项目维护</h2>
+                  <div class="action-group">
+                    <button class="secondary-small" type="button" id="managePricesBtn">管理</button>
+                    <button class="primary-small" type="button" id="addServiceBtn">
+                      <span class="icon icon-plus" aria-hidden="true"></span>
+                      新增项目
+                    </button>
+                  </div>
+                </div>
+                <div class="price-category-section">
+                  <div class="price-category-heading">
+                    <div>
+                      <strong>选择品类</strong>
+                      <span>点击品类查看对应的服务项目</span>
+                    </div>
+                    <span id="activeCategoryCount" class="category-result-count"></span>
+                  </div>
+                  <div class="price-category-tabs" id="priceCategoryTabs" aria-label="报价品类"></div>
+                </div>
+                <div class="filters">
+                  <select id="categoryFilter" hidden aria-hidden="true"></select>
+                  <label>
+                    状态
+                    <select id="statusFilter">
+                      <option value="all">全部</option>
+                      <option value="on">已上架</option>
+                      <option value="draft">草稿</option>
+                    </select>
+                  </label>
+                  <label>
+                    关键字
+                    <input id="priceSearch" type="search" placeholder="服务项目/内容" />
+                  </label>
+                </div>
+                <div class="batch-bar" id="priceBatchBar" hidden>
+                  <span id="priceSelectedCount">已选择 0 项</span>
+                  <button class="danger-small" type="button" id="batchDeleteServicesBtn">批量删除</button>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>品类</th>
+                        <th>服务项目</th>
+                        <th>基础人工费</th>
+                        <th>配件估价</th>
+                        <th>质保</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="serviceTable"></tbody>
+                  </table>
+                </div>
+              </section>
+
+              <aside class="editor-panel">
+                <div class="panel-head">
+                  <h2>编辑报价</h2>
+                  <span id="editorStatus" class="status-pill">已上架</span>
+                </div>
+                <form class="edit-form" id="serviceForm">
+                  <label>
+                    品类
+                    <select id="editCategory"></select>
+                  </label>
+                  <label>
+                    服务项目
+                    <input id="editName" type="text" />
+                  </label>
+                  <label>
+                    服务内容
+                    <textarea id="editDesc" rows="3"></textarea>
+                  </label>
+                  <div class="form-grid">
+                    <label>
+                      最低人工费
+                      <input id="editLow" type="number" min="0" />
+                    </label>
+                    <label>
+                      最高人工费
+                      <input id="editHigh" type="number" min="0" />
+                    </label>
+                  </div>
+                  <div class="form-grid">
+                    <label>
+                      配件估价
+                      <input id="editPart" type="number" min="0" />
+                    </label>
+                    <label>
+                      质保
+                      <input id="editWarranty" type="text" />
+                    </label>
+                  </div>
+                  <label>
+                    包含内容
+                    <input id="editIncludes" type="text" />
+                  </label>
+                  <label>
+                    不含/另计
+                    <input id="editExcludes" type="text" />
+                  </label>
+                  <div class="form-actions">
+                    <button class="secondary-small" type="button" id="toggleStatusBtn">下架</button>
+                    <button class="primary-small" type="submit">
+                      <span class="icon icon-save" aria-hidden="true"></span>
+                      保存修改
+                    </button>
+                  </div>
+                </form>
+              </aside>
+            </div>
+          </section>
+
+          <section class="section-view" id="assetsSection">
+            <div class="assets-stack">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>品类图片</h2>
+                  <div class="action-group">
+                    <button class="secondary-small" type="button" id="manageCategoriesBtn">管理</button>
+                    <button class="primary-small" type="button" id="uploadCategoryBtn">上传品类图</button>
+                  </div>
+                </div>
+                <div class="batch-bar" id="categoryBatchBar" hidden>
+                  <span id="categorySelectedCount">已选择 0 项</span>
+                  <button class="danger-small" type="button" id="batchDeleteCategoriesBtn">批量删除</button>
+                </div>
+                <div class="asset-category-groups" id="assetCategoryGroups" aria-label="一级品类"></div>
+                <div class="category-assets" id="categoryAssets"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <div class="linked-panel-title"><h2 id="brandPanelTitle">关联品牌</h2><p id="brandPanelHint">请先从上方选择二级品类</p></div>
+                  <div class="action-group">
+                    <button class="secondary-small" type="button" id="manageBrandsBtn">管理</button>
+                    <button class="primary-small" type="button" id="addBrandBtn">新增品牌</button>
+                  </div>
+                </div>
+                <div class="batch-bar" id="brandBatchBar" hidden>
+                  <span id="brandSelectedCount">已选择 0 项</span>
+                  <button class="danger-small" type="button" id="batchDeleteBrandsBtn">批量删除</button>
+                </div>
+                <div class="brand-assets" id="brandAssets"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="section-view" id="citiesSection">
+            <div class="split-layout cities-layout">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>城市调价规则</h2>
+                  <div class="action-group">
+                    <button class="secondary-small" type="button" id="manageCitiesBtn">管理</button>
+                    <button class="primary-small" type="button" id="addCityBtn">新增城市</button>
+                  </div>
+                </div>
+                <div class="batch-bar" id="cityBatchBar" hidden>
+                  <span id="citySelectedCount">已选择 0 项</span>
+                  <button class="danger-small" type="button" id="batchDeleteCitiesBtn">批量删除</button>
+                </div>
+                <form class="inline-table-form city-inline-form" id="cityForm">
+                  <input id="cityEditId" type="hidden" />
+                  <label>
+                    城市名称
+                    <input id="cityNameInput" type="text" placeholder="例如：上海" required />
+                  </label>
+                  <label>
+                    调价规则
+                    <input id="cityRateInput" type="text" placeholder="标准 / +10% / -5%" value="标准" />
+                  </label>
+                  <label>
+                    服务半径
+                    <input id="cityRadiusInput" type="text" placeholder="例如：10公里" value="10公里" />
+                  </label>
+                  <div class="inline-form-actions">
+                    <button class="secondary-small reset-inline-action" type="button" id="resetCityBtn">清空</button>
+                    <button class="primary-small save-inline-action" type="submit" id="saveCityBtn">保存城市</button>
+                  </div>
+                </form>
+                <div class="city-list" id="cityList"></div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <div class="linked-panel-title"><h2 id="regionPanelTitle">区域规则</h2><p id="regionPanelHint">请先从左侧选择城市</p></div>
+                  <div class="action-group">
+                    <button class="secondary-small" type="button" id="manageRegionsBtn">管理</button>
+                    <button class="primary-small" type="button" id="addRegionBtn">新增区域</button>
+                  </div>
+                </div>
+                <div class="batch-bar" id="regionBatchBar" hidden>
+                  <span id="regionSelectedCount">已选择 0 项</span>
+                  <button class="danger-small" type="button" id="batchDeleteRegionsBtn">批量删除</button>
+                </div>
+                <form class="inline-table-form region-inline-form" id="regionForm">
+                  <input id="regionEditId" type="hidden" />
+                  <label>
+                    所属城市
+                    <select id="regionCityInput" required></select>
+                  </label>
+                  <label>
+                    区域名称
+                    <input id="regionNameInput" type="text" placeholder="例如：浦东新区" required />
+                  </label>
+                  <label>
+                    区域调价
+                    <input id="regionRateInput" type="text" placeholder="标准 / +8%" value="标准" />
+                  </label>
+                  <label>
+                    服务半径
+                    <input id="regionRadiusInput" type="text" placeholder="例如：9公里" value="10公里" />
+                  </label>
+                  <div class="inline-form-actions">
+                    <button class="secondary-small reset-inline-action" type="button" id="resetRegionBtn">清空</button>
+                    <button class="primary-small save-inline-action" type="submit" id="saveRegionBtn">保存区域</button>
+                  </div>
+                </form>
+                <div class="region-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>城市</th>
+                        <th>区域</th>
+                        <th>调价</th>
+                        <th>服务半径</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="regionTable"></tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="section-view" id="rulesSection">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>特殊费用规则</h2>
+                <div class="action-group">
+                  <button class="secondary-small" type="button" id="manageRulesBtn">管理</button>
+                  <button class="primary-small" type="button" id="addRuleBtn">新增规则</button>
+                </div>
+              </div>
+              <div class="batch-bar" id="ruleBatchBar" hidden>
+                <span id="ruleSelectedCount">已选择 0 项</span>
+                <button class="danger-small" type="button" id="batchDeleteRulesBtn">批量删除</button>
+              </div>
+              <form class="inline-table-form rule-inline-form" id="ruleForm">
+                <input id="ruleEditId" type="hidden" />
+                <label>
+                  费用名称
+                  <input id="ruleNameInput" type="text" placeholder="例如：高空费" required />
+                </label>
+                <label>
+                  价格规则
+                  <input id="rulePriceInput" type="text" placeholder="例如：50-180元" required />
+                </label>
+                <label>
+                  适用场景
+                  <input id="ruleSceneInput" type="text" placeholder="例如：空调外机、窗外施工" />
+                </label>
+                <div class="inline-form-actions">
+                  <button class="secondary-small reset-inline-action" type="button" id="resetRuleBtn">清空</button>
+                  <button class="primary-small save-inline-action" type="submit" id="saveRuleBtn">保存规则</button>
+                </div>
+              </form>
+              <div class="rule-list" id="ruleList"></div>
+            </section>
+          </section>
+
+          <section class="section-view" id="receiptsSection">
+            <section class="panel data-panel">
+              <div class="panel-head">
+                <h2>电子收据记录</h2>
+                <button class="secondary-small" type="button" id="exportReceiptsBtn">
+                  <span class="icon icon-download" aria-hidden="true"></span>
+                  导出
+                </button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>收据编号</th>
+                      <th>维修时间</th>
+                      <th>客户</th>
+                      <th>服务项目</th>
+                      <th>金额</th>
+                      <th>状态</th>
+                      <th>公众号</th>
+                      <th>保修倒计时</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="receiptTable"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="section-view" id="wechatSection">
+            <div class="split-layout">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>公众号领取配置</h2>
+                  <button class="primary-small" type="button">保存配置</button>
+                </div>
+                <div class="wechat-config">
+                  <label>
+                    公众号名称
+                    <input type="text" value="壹思源维修服务" />
+                  </label>
+                  <label>
+                    二维码用途
+                    <input type="text" value="客户先关注公众号，再微信授权登录领取电子收据" />
+                  </label>
+                  <label>
+                    关注后推送文案
+                    <textarea rows="4">您的维修服务收据已生成，点击查看。收据内包含维修时间、费用明细、客户签名、电子章和保修倒计时。</textarea>
+                  </label>
+                  <div class="wechat-flow">
+                    <strong>领取流程</strong>
+                    <span>生成收据</span>
+                    <span>生成带参数公众号二维码</span>
+                    <span>客户扫码，先引导关注公众号</span>
+                    <span>关注后进入小程序授权登录</span>
+                    <span>登录后领取收据并绑定到“我的收据”</span>
+                    <span>后续进入小程序可查看自己的收据和保修提醒</span>
+                  </div>
+                </div>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>领取状态看板</h2>
+                  <button class="secondary-small" type="button">同步公众号事件</button>
+                </div>
+                <div class="claim-board" id="claimBoard"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="section-view" id="permissionsSection">
+            <div class="split-layout">
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>内部人员权限</h2>
+                    <button class="primary-small" id="addStaffBtn" type="button">新增师傅账号</button>
+                </div>
+                  <div class="permission-list" id="permissionList"></div>
+                  <p id="permissionMessage" role="status"></p>
+                  <form class="edit-form" id="staffAccountForm" hidden>
+                    <label>师傅姓名<input name="name" required maxlength="40" /></label>
+                    <label>手机号<input name="mobile" type="tel" required pattern="1[0-9]{10}" maxlength="11" /></label>
+                    <label>初始密码<input name="password" type="password" autocomplete="new-password" required minlength="8" /></label>
+                    <p>账号创建后默认无开据权限，请在人员列表中单独开通。</p>
+                    <button class="primary-small" type="submit">创建师傅账号</button>
+                  </form>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>客户访问规则</h2>
+                  <button class="primary-small" type="button">保存规则</button>
+                </div>
+                <div class="access-rules">
+                  <label>
+                    收据访问方式
+                    <input type="text" value="关注公众号后微信授权登录领取" />
+                  </label>
+                  <label>
+                    收据链接有效期
+                    <input type="text" value="长期有效，可后台作废" />
+                  </label>
+                  <label>
+                    客户可见范围
+                    <textarea rows="4">维修时间、维修项目、费用明细、客户签名、公司电子章、保修期限、保修倒计时。不展示后台成本、城市调价倍率、内部备注。</textarea>
+                  </label>
+                  <div class="security-note">
+                    <strong>权限原则</strong>
+                      <span>游客可以查价；只有已获管理员授权的内部师傅可以生成收据。管理员与客服账号不能直接开据。</span>
+                    <span>客户必须先关注公众号，再通过微信授权登录领取收据。</span>
+                    <span>收据领取后绑定客户微信身份，后续在小程序“我的收据”查看。</span>
+                    <span>后台可查看关注、登录、领取状态，也可以作废收据访问。</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="section-view" id="previewSection">
+            <section class="panel preview-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>小程序端实时预览</h2>
+                  <p>后台改价时可在这里观察师傅端页面结构，后续接入数据后可做实时同步预览。</p>
+                </div>
+                <button class="secondary-small" type="button" id="refreshPreviewBtn">
+                  <span class="icon icon-refresh" aria-hidden="true"></span>
+                  刷新预览
+                </button>
+              </div>
+              <div class="preview-stage">
+                <div class="phone-frame">
+                  <iframe id="miniappPreview" title="小程序端预览" src="/miniapp/"></iframe>
+                </div>
+                <aside class="preview-notes">
+                  <strong>观察重点</strong>
+                  <span>品类图片、品牌 Logo、报价单、签名收据流程。</span>
+                  <span>当前为静态原型预览，后续可接后台数据接口。</span>
+                </aside>
+              </div>
+            </section>
+          </section>
+        </section>
+      </section>
+
+      <section class="modal" id="receiptModal" hidden aria-label="收据详细记录">
+        <div class="modal-backdrop" data-close-receipt></div>
+        <article class="receipt-modal">
+          <header class="modal-head">
+            <div>
+              <p>电子收据预览</p>
+              <h2 id="modalReceiptNo">YSY000000</h2>
+            </div>
+            <button class="icon-action" type="button" data-close-receipt aria-label="关闭收据预览">×</button>
+          </header>
+          <section class="receipt-paper">
+            <div class="receipt-top">
+              <div>
+                <span>壹思源维修</span>
+                <h3>维修服务收据</h3>
+              </div>
+              <div class="receipt-stamp">
+                <span>壹思源维修</span>
+                <strong>电子章</strong>
+              </div>
+            </div>
+            <div class="receipt-detail-grid">
+              <div><span>客户</span><strong id="modalCustomer">-</strong></div>
+              <div><span>维修时间</span><strong id="modalRepairTime">-</strong></div>
+              <div><span>服务项目</span><strong id="modalService">-</strong></div>
+              <div><span>服务城市</span><strong id="modalCity">-</strong></div>
+              <div><span>质保期限</span><strong id="modalWarranty">-</strong></div>
+              <div><span>保修倒计时</span><strong id="modalWarrantyLeft">-</strong></div>
+            </div>
+            <div class="receipt-detail-lines" id="modalReceiptLines"></div>
+            <div class="receipt-modal-total">
+              <span>实收合计</span>
+              <strong id="modalAmount">¥0</strong>
+            </div>
+            <div class="receipt-bottom">
+              <div>
+                <span>客户签名</span>
+                <div class="signature-preview" id="modalSignature">张先生</div>
+              </div>
+              <div>
+                <span>关注公众号领取</span>
+                <img id="modalQr" alt="收据二维码" />
+                <small id="modalClaimText">先关注公众号，再微信授权登录领取</small>
+              </div>
+            </div>
+          </section>
+        </article>
+      </section>
+
+      <section class="modal" id="assetModal" hidden aria-label="品类品牌编辑">
+        <div class="modal-backdrop" data-close-asset></div>
+        <article class="asset-modal">
+          <header class="modal-head">
+            <div>
+              <p id="assetModalEyebrow">品类品牌</p>
+              <h2 id="assetModalTitle">编辑资料</h2>
+            </div>
+            <button class="icon-action" type="button" data-close-asset aria-label="关闭编辑弹窗">×</button>
+          </header>
+
+          <form class="asset-form" id="categoryAssetForm" hidden>
+            <div class="asset-preview-block">
+              <span>品类图片预览</span>
+              <div class="asset-image-preview">
+                <img id="categoryImagePreview" alt="品类图片预览" />
+              </div>
+            </div>
+            <div class="form-grid">
+              <label>
+                品类名称
+                <input id="categoryNameInput" type="text" placeholder="例如：空调维修" required />
+              </label>
+              <label>
+                主色
+                <input id="categoryToneInput" type="color" value="#14766f" />
+              </label>
+              <label>
+                点缀色
+                <input id="categoryAccentInput" type="color" value="#f59f2f" />
+              </label>
+              <label>
+                上传图片
+                <input id="categoryImageInput" type="file" accept="image/*" />
+              </label>
+            </div>
+            <div class="form-actions">
+              <button class="secondary-small" type="button" data-close-asset>取消</button>
+              <button class="primary-small" type="submit">保存品类</button>
+            </div>
+          </form>
+
+          <form class="asset-form" id="brandAssetForm" hidden>
+            <div class="asset-preview-block">
+              <span>品牌 Logo 预览</span>
+              <div class="asset-logo-preview">
+                <img id="brandLogoPreview" alt="品牌 Logo 预览" />
+              </div>
+            </div>
+            <div class="form-grid">
+              <label>
+                品牌名称
+                <input id="brandNameInput" type="text" placeholder="例如：格力" required />
+              </label>
+              <label>
+                英文/简称
+                <input id="brandLatinInput" type="text" placeholder="例如：GREE" required />
+              </label>
+              <label>
+                Logo 色
+                <input id="brandColorInput" type="color" value="#14766f" />
+              </label>
+              <label>
+                上传 Logo
+                <input id="brandLogoInput" type="file" accept="image/*" />
+              </label>
+            </div>
+            <div class="checkbox-field">
+              <div class="choice-heading">
+                <div><strong>关联品类</strong><small>品牌只会出现在已关联的报价品类中</small></div>
+                <span id="brandCategorySummary">请至少选择 1 个品类</span>
+              </div>
+              <div class="choice-grid" id="brandCategoryChoices"></div>
+            </div>
+            <label class="factor-field"><span>品牌报价系数</span>
+              <input id="brandFactorInput" type="number" min="0.01" max="10" step="0.01" value="1" required />
+              <small>人工费和配件费均乘以此系数；1 为标准价，1.08 为整体增加 8%。</small>
+            </label>
+            <input id="brandSpecialInput" type="checkbox" hidden />
+            <div class="form-actions">
+              <button class="secondary-small" type="button" data-close-asset>取消</button>
+              <button class="primary-small" type="submit">保存品牌</button>
+            </div>
+          </form>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js?v=20260911-permission-readonly-list"></script>
+  </body>
+</html>

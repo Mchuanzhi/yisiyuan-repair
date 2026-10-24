@@ -1,0 +1,12 @@
+﻿node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+!.env.example
+local-backend/data/*.sqlite
+local-backend/data/*.sqlite-*
+*.sqlite
+*.sqlite-journal
+.scratch/
