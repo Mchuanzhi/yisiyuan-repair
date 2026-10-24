@@ -441,7 +441,7 @@ function presentReceipt(receipt, signaturePath) {
     excludes: receipt.excludes || "",
     lines: (receipt.lines || []).map((row) => ({ label: row.label, value: money(row.amount) })),
     signaturePath: signaturePath || "",
-    claimText: "收据已保存。微信扫码领取尚未接入，请联系门店获取凭证。",
+    claimText: "收据已保存，请向客户出示本页留存。",
     voided: Boolean(receipt.voided),
     statusText: receipt.voided ? "已作废" : "已开具",
   };

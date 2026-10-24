@@ -9,6 +9,8 @@ import { createServer } from "../../local-backend/src/server.mjs";
 const require = createRequire(import.meta.url);
 const model = require("../utils/model.js");
 const layout = require("../utils/layout.js");
+const panels = require("../utils/panels.js");
+const debugAccess = require("../utils/debug-access.js");
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function read(file) {
@@ -173,7 +175,113 @@ async function assertServerParity() {
   }
 }
 
+function assertUiScope() {
+  const initial = panels.collapsedPanels(panels.initialOpenPanels());
+  assert.deepEqual(initial, {
+    category: false,
+    service: true,
+    brand: true,
+    extra: true,
+    warranty: true,
+    quote: true,
+  });
+  const afterCategory = panels.collapsedPanels(panels.panelsForStep("category"), initial);
+  assert.equal(afterCategory.service, false);
+  assert.equal(afterCategory.brand, true);
+  assert.equal(afterCategory.quote, true);
+  const afterService = panels.collapsedPanels(panels.panelsForStep("service", { hasService: true }), afterCategory);
+  assert.equal(afterService.category, false);
+  assert.equal(afterService.brand, false);
+  assert.equal(afterService.extra, true);
+  const cleared = panels.collapsedPanels(panels.panelsForStep("service", { hasService: false }), afterService);
+  assert.equal(cleared.brand, false);
+  assert.equal(cleared.service, false);
+  const afterBrand = panels.collapsedPanels(panels.panelsForStep("brand"), afterService);
+  assert.equal(afterBrand.extra, false);
+  assert.equal(afterBrand.warranty, true);
+  const afterExtra = panels.collapsedPanels(panels.panelsForStep("extra"), afterBrand);
+  assert.equal(afterExtra.warranty, false);
+  assert.equal(afterExtra.quote, true);
+  const afterWarranty = panels.collapsedPanels(panels.panelsForStep("warranty"), afterExtra);
+  assert.equal(afterWarranty.quote, false);
+  const manual = Object.assign({}, initial, { quote: false });
+  assert.equal(panels.collapsedPanels(panels.panelsForStep("category"), manual).quote, false);
+  assert.deepEqual(panels.panelsForStep("search", { hasService: true }), ["category", "service", "brand"]);
+  assert.deepEqual(panels.panelsForStep("unknown"), []);
+
+  const quoteWxml = read("pages/quote/quote.wxml");
+  const quoteJs = read("pages/quote/quote.js");
+  assert.match(quoteWxml, /当前预估合计/);
+  assert.match(quoteWxml, /dockTotal/);
+  assert.match(quoteWxml, /bindtap="onConfirm"/);
+  assert.match(quoteJs, /确认报价 · 签名/);
+  assert.match(quoteJs, /collapsedPanels\(panels\.initialOpenPanels\(\)\)/);
+  for (const step of ["category", "service", "brand", "extra", "warranty", "search"]) {
+    assert.match(quoteJs, new RegExp("expandPanels\\(\"" + step + "\""));
+  }
+
+  const accountWxml = read("pages/account/account.wxml");
+  const accountJs = read("pages/account/account.js");
+  const debugAt = accountWxml.indexOf('hidden="{{!showDebug}}"');
+  assert.ok(debugAt > accountWxml.indexOf("师傅登录"));
+  assert.ok(accountWxml.indexOf("报价接口") > debugAt);
+  assert.ok(accountWxml.indexOf("本地演示数据") > debugAt);
+  assert.ok(accountWxml.indexOf("开具收据权限") < debugAt);
+  assert.match(accountWxml, /bindlongpress="onProfileLongPress"/);
+  assert.match(accountWxml, /bindtap="onProfileTap"/);
+  assert.match(accountWxml, /退出登录/);
+  assert.match(accountJs, /readEnvVersion/);
+  assert.match(accountJs, /recent\.length >= 5/);
+  assert.equal(debugAccess.showDebugSettings("develop", false), true);
+  assert.equal(debugAccess.showDebugSettings("trial", false), false);
+  assert.equal(debugAccess.showDebugSettings("release", false), false);
+  assert.equal(debugAccess.showDebugSettings("release", true), true);
+  assert.equal(debugAccess.showDebugSettings("", false), false);
+  assert.equal(debugAccess.readEnvVersion({ getAccountInfoSync: () => ({ miniProgram: { envVersion: "trial" } }) }), "trial");
+  assert.equal(debugAccess.readEnvVersion({ getAccountInfoSync: () => { throw new Error("unavailable"); } }), "");
+  assert.equal(debugAccess.readEnvVersion(null), "");
+
+  const receipt = model.presentReceipt({
+    no: "YSY1",
+    repairTime: "2026-10-24 10:00",
+    cityName: "上海",
+    warrantyDays: 30,
+    warrantyExpireDate: "2026-11-23",
+    amount: 143,
+    customerName: "王先生",
+    serviceName: "挂机普通维修",
+    brandName: "格力",
+    lines: [{ label: "维修人工费", amount: 143 }],
+  }, "");
+  assert.equal(receipt.claimText, "收据已保存，请向客户出示本页留存。");
+  const receiptSources = ["utils/model.js", "pages/receipt/receipt.wxml", "pages/receipt/receipt.js", "pages/signature/signature.wxml", "pages/signature/signature.js"].map((file) => read(file)).join("\n");
+  assert.equal(receiptSources.includes("公众号"), false);
+  assert.equal(receiptSources.includes("领取"), false);
+  assert.equal(receiptSources.includes("订阅消息"), false);
+
+  const previewHtml = fs.readFileSync(path.resolve(root, "../miniapp-ui/index.html"), "utf8");
+  const previewJs = fs.readFileSync(path.resolve(root, "../miniapp-ui/app.js"), "utf8");
+  const panelTag = (name) => {
+    const match = previewHtml.match(new RegExp(`<section[^>]*data-panel="${name}"[^>]*>`));
+    assert.ok(match, name);
+    return match[0];
+  };
+  assert.equal(panelTag("category").includes("is-collapsed"), false);
+  for (const name of ["service", "brand", "extra", "warranty", "quote"]) {
+    assert.equal(panelTag(name).includes("is-collapsed"), true, name);
+  }
+  assert.match(previewHtml, /出示本页留存/);
+  assert.equal(previewHtml.includes("公众号"), false);
+  assert.equal(previewHtml.includes("领取"), false);
+  assert.equal(previewJs.includes("领取"), false);
+  assert.equal(previewJs.includes("公众号"), false);
+  assert.match(previewJs, /openQuotePanels\(\["category", "service"\]\)/);
+  assert.match(previewHtml, /确认报价 · 签名/);
+  assert.match(previewHtml, /id="dockTotal"/);
+}
+
 assertStructure();
 assertMockMath();
+assertUiScope();
 await assertServerParity();
 console.log("miniprogram quote checks passed");

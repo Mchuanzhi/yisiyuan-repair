@@ -1,6 +1,7 @@
 const model = require("../../utils/model");
 const api = require("../../utils/api");
 const layout = require("../../utils/layout");
+const panels = require("../../utils/panels");
 const initialFrame = layout.quoteFrame(375, 667);
 
 Page({
@@ -19,7 +20,7 @@ Page({
     extras: [],
     warrantyOptions: [],
     searchMounted: true,
-    collapsed: {},
+    collapsed: panels.collapsedPanels(panels.initialOpenPanels()),
     categoryCount: "",
     serviceTitle: "常用项目",
     resultCount: "",
@@ -250,6 +251,12 @@ Page({
     this.setData({ collapsed });
   },
 
+  expandPanels(step, detail) {
+    const keys = panels.panelsForStep(step, detail);
+    if (!keys.length) return;
+    this.setData({ collapsed: panels.collapsedPanels(keys, this.data.collapsed) });
+  },
+
   onGroup(event) {
     const groupId = event.currentTarget.dataset.id;
     const first = (this.catalog.categories || []).find((category) => model.groupForCategory(category).id === groupId && this.catalog.services.some((service) => service.categoryId === category.id));
@@ -263,6 +270,7 @@ Page({
       brandId: "",
       warrantyDays: service ? Number(service.warrantyDays || 0) : 30,
     });
+    this.expandPanels("category");
     this.remountSearch();
     this.renderView();
   },
@@ -277,6 +285,7 @@ Page({
       brandId: "",
       warrantyDays: service ? Number(service.warrantyDays || 0) : 30,
     });
+    this.expandPanels("category");
     this.remountSearch();
     this.renderView();
   },
@@ -300,11 +309,13 @@ Page({
     });
     const brands = model.availableBrands(this.catalog, service.categoryId);
     if (!brands.some((brand) => brand.id === this.selection.brandId)) this.selection.brandId = brands[0] ? brands[0].id : "";
+    this.expandPanels("service", { hasService: this.selection.serviceIds.length > 0 });
     this.renderView();
   },
 
   onBrand(event) {
     this.selection = Object.assign({}, this.selection, { brandId: event.currentTarget.dataset.id });
+    this.expandPanels("brand");
     this.renderView();
   },
 
@@ -318,11 +329,13 @@ Page({
     if (enabled) ids.push(id);
     else ids.splice(index, 1);
     this.selection = Object.assign({}, this.selection, { extraIds: ids });
+    this.expandPanels("extra");
     this.renderView();
   },
 
   onWarranty(event) {
     this.selection = Object.assign({}, this.selection, { warrantyDays: Number(event.currentTarget.dataset.days) });
+    this.expandPanels("warranty");
     this.renderView();
   },
 
@@ -338,6 +351,7 @@ Page({
       draft.serviceIds = [];
     }
     this.selection = draft;
+    this.expandPanels("search", { hasService: draft.serviceIds.length > 0 });
     this.renderView();
   },
 

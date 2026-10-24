@@ -964,9 +964,9 @@ h2 {
 
 .receipt-signature {
   display: grid;
-  grid-template-columns: 1fr 112px;
+  grid-template-columns: 1fr;
   gap: 14px;
-  align-items: end;
+  align-items: start;
 }
 
 .receipt-signature div {
