@@ -3,6 +3,9 @@ const model = require("./model");
 // DevTools lib 3.17.5 still has getApp() undefined for the whole App.onLaunch call.
 // onLaunch passes its instance in; later calls use getApp() once the runtime has registered it.
 let appInstance = null;
+// Ticket issued by wechat-login. Kept here because DevTools lib 3.17.5 may
+// finish App.onLaunch on a different object than the one getApp() returns later.
+let pendingBindTicket = "";
 
 function runtime() {
   let app = null;
@@ -20,22 +23,45 @@ function runtime() {
   return app.globalData;
 }
 
+function decodeResponse(data) {
+  if (data && typeof data === "object") return data;
+  if (typeof data === "string" && data.trim()) {
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch (error) {}
+  }
+  return {};
+}
+
 function request(path, options) {
   const settings = options || {};
   const state = runtime();
   const base = String(state.apiBase || "").replace(/\/$/, "");
+  const method = settings.method || "GET";
+  let data = settings.data;
+  const verb = String(method).toUpperCase();
+  // wx.request JSON-serializes an object only when header["content-type"]
+  // (that exact lowercase key) is application/json. DevTools lib 3.17.5
+  // already defaults that key, so a capitalized Content-Type is a second
+  // header and the object body is dropped. The server then sees {} and
+  // POST /api/auth/wechat-bind returns 400 缺少字段：bindTicket.
+  // Strings are sent as-is, so this JSON arrives once.
+  if (data != null && typeof data === "object" && verb !== "GET" && verb !== "HEAD") {
+    data = JSON.stringify(data);
+  }
   return new Promise((resolve, reject) => {
     wx.request({
       url: base + path,
-      method: settings.method || "GET",
-      data: settings.data,
+      method,
+      data,
       timeout: 15000,
       header: Object.assign(
-        { "Content-Type": "application/json" },
+        { "content-type": "application/json" },
         state.token ? { Authorization: "Bearer " + state.token } : {},
       ),
       success(res) {
-        const body = res.data && typeof res.data === "object" ? res.data : {};
+        const body = decodeResponse(res.data);
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(body);
           return;
@@ -54,18 +80,67 @@ function request(path, options) {
   });
 }
 
+function sessionDataList() {
+  const list = [];
+  const add = (data) => {
+    if (data && list.indexOf(data) === -1) list.push(data);
+  };
+  try {
+    add(runtime());
+  } catch (error) {}
+  if (appInstance && appInstance.globalData) add(appInstance.globalData);
+  return list;
+}
+
+function mirrorBindTicket(ticket) {
+  pendingBindTicket = String(ticket || "").trim();
+  for (const data of sessionDataList()) data.bindTicket = pendingBindTicket;
+  return pendingBindTicket;
+}
+
+function currentBindTicket() {
+  let data = null;
+  try {
+    data = runtime();
+  } catch (error) {
+    return pendingBindTicket;
+  }
+  const onData = String(data.bindTicket || "").trim();
+  if (onData) {
+    pendingBindTicket = onData;
+    return onData;
+  }
+  if (pendingBindTicket) data.bindTicket = pendingBindTicket;
+  return pendingBindTicket;
+}
+
+function publishWechatStatus(partial) {
+  for (const data of sessionDataList()) {
+    if (partial.wechatHint !== undefined) data.wechatHint = partial.wechatHint;
+    if (partial.wechatErrorCode !== undefined) data.wechatErrorCode = partial.wechatErrorCode;
+    if (partial.skipWechatAuto !== undefined) data.skipWechatAuto = partial.skipWechatAuto;
+  }
+}
+
 function saveSession(token, user) {
-  const state = runtime();
-  state.token = token || "";
-  state.user = user || null;
-  wx.setStorageSync("staffToken", state.token);
-  wx.setStorageSync("staffUser", state.user);
+  const nextToken = token || "";
+  const nextUser = user || null;
+  const list = sessionDataList();
+  if (!list.length) {
+    throw Object.assign(new Error("小程序尚未完成启动"), { code: "app_not_ready" });
+  }
+  for (const data of list) {
+    data.token = nextToken;
+    data.user = nextUser;
+  }
+  wx.setStorageSync("staffToken", nextToken);
+  wx.setStorageSync("staffUser", nextUser);
 }
 
 function clearSession() {
-  const state = runtime();
-  state.bindTicket = "";
+  pendingBindTicket = "";
   saveSession("", null);
+  for (const data of sessionDataList()) data.bindTicket = "";
 }
 
 function wxLoginCode() {
@@ -103,44 +178,78 @@ function enterWithWechat(options) {
     });
   }
   state.skipWechatAuto = false;
+  publishWechatStatus({ skipWechatAuto: false });
   return wxLoginCode().then((code) => request("/api/auth/wechat-login", {
     method: "POST",
     data: { code },
   })).then((result) => {
     state.wechatHint = "";
     state.wechatErrorCode = "";
+    publishWechatStatus({ wechatHint: "", wechatErrorCode: "" });
     if (result.bound && result.token) {
       saveSession(result.token, result.user);
-      state.bindTicket = "";
+      mirrorBindTicket("");
     } else {
-      state.bindTicket = result.bindTicket || "";
-      if (!result.bound) state.wechatHint = result.message || "";
+      mirrorBindTicket(result.bindTicket || "");
+      if (!result.bound) {
+        state.wechatHint = result.message || "";
+        publishWechatStatus({ wechatHint: state.wechatHint });
+      }
     }
     return result;
   }).catch((error) => {
     state.wechatErrorCode = error.code || "";
     state.wechatHint = error.message || "微信登录失败，请使用手机号和密码";
+    publishWechatStatus({ wechatErrorCode: state.wechatErrorCode, wechatHint: state.wechatHint });
     throw error;
   });
 }
 
+function clientError(message, code) {
+  return Object.assign(new Error(message), { status: 400, code });
+}
+
 function wechatBind(bindTicket, mobile, password) {
+  const ticket = String(bindTicket || "").trim();
+  const mobileText = String(mobile || "").trim();
+  const passwordText = password == null ? "" : String(password);
+  if (!ticket) {
+    return Promise.reject(clientError("请先点「微信登录」。还没有绑定凭证，或凭证已失效。也可以直接填写手机号和密码登录。", "missing_bind_ticket"));
+  }
+  if (!mobileText || !passwordText) {
+    return Promise.reject(clientError("请填写手机号和密码", "missing_field"));
+  }
   return request("/api/auth/wechat-bind", {
     method: "POST",
     data: {
-      bindTicket,
-      mobile: String(mobile || "").trim(),
-      password,
+      bindTicket: ticket,
+      mobile: mobileText,
+      password: passwordText,
     },
   }).then((result) => {
-    const state = runtime();
     saveSession(result.token, result.user);
-    state.bindTicket = "";
-    state.wechatHint = "";
-    state.wechatErrorCode = "";
-    state.skipWechatAuto = false;
+    mirrorBindTicket("");
+    publishWechatStatus({ wechatHint: "", wechatErrorCode: "", skipWechatAuto: false });
     return result;
+  }).catch((error) => {
+    if (error && error.code === "bind_ticket_invalid") mirrorBindTicket("");
+    if (error && error.code === "missing_field" && String(error.message || "").indexOf("bindTicket") !== -1) {
+      error.message = "绑定凭证没有提交成功。请重新点「微信登录」，再填写手机号和密码。";
+    }
+    return Promise.reject(error);
   });
+}
+
+function loginWithPassword(mobile, password) {
+  const mobileText = String(mobile || "").trim();
+  const passwordText = password == null ? "" : String(password);
+  if (!mobileText || !passwordText) {
+    return Promise.reject(clientError("请填写手机号和密码", "missing_field"));
+  }
+  const state = runtime();
+  const ticket = state.useMock ? "" : currentBindTicket();
+  if (ticket) return wechatBind(ticket, mobileText, passwordText);
+  return staffLogin(mobileText, passwordText);
 }
 
 function bootstrapSession(app) {
@@ -216,7 +325,7 @@ function staffLogin(mobile, password) {
 function staffLogout() {
   const finish = () => {
     clearSession();
-    runtime().skipWechatAuto = true;
+    publishWechatStatus({ skipWechatAuto: true });
     return { ok: true };
   };
   if (runtime().useMock || !runtime().token) return Promise.resolve(finish());
@@ -345,6 +454,8 @@ module.exports = {
   refreshMe,
   enterWithWechat,
   wechatBind,
+  loginWithPassword,
+  currentBindTicket,
   bootstrapSession,
   whenSessionReady,
   createReceipt,

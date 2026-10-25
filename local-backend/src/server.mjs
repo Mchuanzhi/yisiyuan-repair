@@ -713,12 +713,28 @@ async function writeDb(dbFile, db) {
   });
 }
 
+function coerceJsonObject(value, depth = 0) {
+  if (typeof value === "string" && depth < 2) {
+    const text = value.trim();
+    if (text.startsWith("{") || text.startsWith("[")) return coerceJsonObject(JSON.parse(text), depth + 1);
+    return {};
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value;
+}
+
 async function parseJson(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   if (!chunks.length) return {};
-  const raw = Buffer.concat(chunks).toString("utf8");
-  return raw ? JSON.parse(raw) : {};
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  if (!raw) return {};
+  // DevTools may form-encode the POST, or stringify a body that is already JSON text.
+  // Both still carry bindTicket. An empty body does not.
+  if (!raw.startsWith("{") && !raw.startsWith("[") && !raw.startsWith('"') && raw.includes("=")) {
+    return Object.fromEntries(new URLSearchParams(raw));
+  }
+  return coerceJsonObject(JSON.parse(raw));
 }
 
 async function parseForm(req) {
@@ -1503,6 +1519,7 @@ async function handle(req, res, serverOptions) {
 
   if (route === "POST /api/auth/wechat-bind") {
     const body = await parseJson(req);
+    if (typeof body.bindTicket === "string") body.bindTicket = body.bindTicket.trim();
     if (typeof body.mobile === "string") body.mobile = body.mobile.trim();
     assertRequired(body, ["bindTicket", "mobile", "password"]);
     purgeBindTickets(pendingBinds);
