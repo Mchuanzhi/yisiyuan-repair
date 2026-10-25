@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.mjs",
-    "test": "node tests/api.test.mjs"
+    "test": "node tests/api.test.mjs && node tests/import-standard-quote.test.mjs",
+    "import:quote": "python3 scripts/import-standard-quote.py"
   },
   "engines": {
     "node": ">=24"

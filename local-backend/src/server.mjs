@@ -333,6 +333,11 @@ function createSchema(database) {
 function seedIfEmpty(database) {
   const seeded = database.prepare("SELECT value FROM app_meta WHERE key = ?").get("seeded");
   if (seeded) return;
+  const imported = database.prepare("SELECT value FROM app_meta WHERE key = ?").get("quote_imported_at");
+  if (imported) {
+    database.prepare("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)").run("seeded", imported.value);
+    return;
+  }
 
   database.exec("BEGIN IMMEDIATE");
   try {
@@ -661,6 +666,7 @@ function readDbRows(database) {
       scene: row.scene || "",
       enabled: boolFromDb(row.enabled),
     })),
+    quoteImport: readQuoteImport(database),
     receipts: database.prepare("SELECT * FROM receipts ORDER BY rowid").all().map((row) => ({
       id: row.id,
       no: row.no,
@@ -1149,6 +1155,28 @@ function requireCustomer(ctx) {
   }
 }
 
+function readQuoteImport(database) {
+  const rows = database.prepare(
+    "SELECT key, value FROM app_meta WHERE key IN ('quote_import_source', 'quote_imported_at', 'quote_import_counts')",
+  ).all();
+  const meta = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  if (!meta.quote_imported_at && !meta.quote_import_source) return null;
+  let counts = null;
+  if (meta.quote_import_counts) {
+    try {
+      const parsed = JSON.parse(meta.quote_import_counts);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) counts = parsed;
+    } catch {
+      counts = null;
+    }
+  }
+  return {
+    source: meta.quote_import_source || "",
+    importedAt: meta.quote_imported_at || "",
+    counts,
+  };
+}
+
 function publicCatalog(db) {
   const categoryIds = new Set(db.categories.filter(item => item.enabled).map(item => item.id));
   const services = db.services.filter(item => item.enabled && categoryIds.has(item.categoryId));
@@ -1602,12 +1630,12 @@ async function handle(req, res, serverOptions) {
 
   if (route === "GET /api/admin/assets") {
     requireStaff(ctx, ["admin", "technician", "support"]);
-    return send(res, 200, adminAssets(db));
+    return send(res, 200, { ...adminAssets(db), quoteImport: db.quoteImport || null });
   }
 
   if (route === "GET /api/admin/operations") {
     requireStaff(ctx, ["admin", "technician", "support"]);
-    return send(res, 200, adminOperations(db));
+    return send(res, 200, { ...adminOperations(db), quoteImport: db.quoteImport || null });
   }
 
   if (route === "POST /api/admin/categories") {
@@ -1781,7 +1809,7 @@ async function handle(req, res, serverOptions) {
 
   if (route === "GET /api/admin/services") {
     requireStaff(ctx, ["admin", "technician", "support"]);
-    return send(res, 200, { services: db.services });
+    return send(res, 200, { services: db.services, quoteImport: db.quoteImport || null });
   }
 
   if (route === "POST /api/admin/services") {

@@ -356,11 +356,28 @@ function normalizeApiReceipt(receipt) {
   };
 }
 
+function renderQuoteImportStatus(quoteImport) {
+  const el = document.querySelector("#quoteImportStatus");
+  if (!el) return;
+  if (!quoteImport || !quoteImport.importedAt) {
+    el.textContent = "报价目录尚未从标准表导入";
+    return;
+  }
+  const sourceName = String(quoteImport.source || "").split(/[/\\]/).pop() || "标准报价表";
+  const counts = quoteImport.counts || {};
+  const summary = [counts.categories, counts.services, counts.extras].every((value) => Number.isFinite(Number(value)))
+    ? `品类 ${counts.categories} · 项目 ${counts.services} · 特殊费用 ${counts.extras}`
+    : "";
+  const when = String(quoteImport.importedAt).replace("T", " ").replace("Z", " UTC");
+  el.textContent = [`标准表导入 ${when}`, summary, sourceName].filter(Boolean).join(" · ");
+}
+
 async function loadAdminAssets() {
   try {
     const payload = await adminJson("/api/admin/assets");
     categories = (payload.categories || []).map(normalizeApiCategory);
     brands = (payload.brands || []).map(normalizeApiBrand);
+    renderQuoteImportStatus(payload.quoteImport);
     fillSelects();
     renderAll();
   } catch (error) {
