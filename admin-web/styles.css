@@ -400,6 +400,11 @@ p {
   font-size: 12px;
 }
 
+#quoteImportStatus {
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .main-area {
   min-width: 0;
   display: flex;

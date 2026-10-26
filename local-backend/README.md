@@ -32,6 +32,31 @@ D:/codexXm/App_bjb/local-backend/data/yisiyuan-repair.sqlite
 DB_FILE=D:/codexXm/App_bjb/local-backend/data/yisiyuan-repair.sqlite node src/server.mjs
 ```
 
+## 标准报价 Excel 导入
+
+只导入仓库根目录的 `壹思源维修—标准报价表.xlsx`。命令会先备份 SQLite，再重建品类、服务项目、特殊费用，并写入一个系数为 1 的「通用品牌」。标准表没有配件列，导入后的配件估价为 0。人员、开据权限、微信绑定、收据、客户、登录会话、城市和区域保持不变。同一份标准表可以重复导入。不支持其他 Excel，也不会把区域规则乘进报价。
+
+先安装一次依赖，并至少启动过后端，让默认数据库存在：
+
+```bash
+python3 -m pip install -r local-backend/requirements.txt
+node local-backend/src/server.mjs
+```
+
+在仓库根目录执行：
+
+```bash
+python3 local-backend/scripts/import-standard-quote.py
+```
+
+成功时终端会打印导入时间、来源、备份路径，以及品类、服务项目、特殊费用数量。最后一行是 JSON。自定义库和后端使用同一个 `DB_FILE`：
+
+```bash
+DB_FILE=/absolute/path/yisiyuan-repair.sqlite python3 local-backend/scripts/import-standard-quote.py
+```
+
+导入完成后，后台点「刷新数据库数据」。侧栏会显示来源、时间和数量。小程序报价页下拉刷新，H5 点刷新目录；两端都重新请求 `/api/catalog`。审计字段在 `app_meta`：`quote_import_source`、`quote_imported_at`、`quote_import_counts`，管理接口 `/api/admin/assets`、`/api/admin/operations`、`/api/admin/services` 会一并返回。
+
 ## 师傅微信登录
 
 小程序 `wx.login` 拿到的 code 交给：
@@ -68,7 +93,7 @@ DB_FILE=D:/codexXm/App_bjb/local-backend/data/yisiyuan-repair.sqlite node src/se
 - 同一品类下的故障项目支持多选；后端逐项计算人工费和配件费，附加费用只计一次，并将全部项目写入同一张收据。
 - 师傅历史读取本人创建的收据，后台读取全部收据。空数据库显示空状态，不回退演示记录。
 - 同一进程内按数据库文件串行处理请求，避免并发读改写覆盖。尚不支持多个后端进程同时写同一文件。
-- 保留已有数据库内容，本次没有自动导入原始 Excel。区域规则已存储，但尚未参与移动端报价计算。
+- 标准报价表通过上面的导入命令写入。导入只重建报价目录，不覆盖人员、收据、权限、微信绑定、城市和区域。区域规则已存储，但尚未参与移动端报价计算。
 
 ### 其他能力
 
