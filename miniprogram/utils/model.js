@@ -406,7 +406,7 @@ function mockLogin(mobile, password) {
   if (!user) throw Object.assign(new Error("账号或密码错误"), { status: 401 });
   return {
     token: "mock:" + user.id,
-    user: { id: user.id, name: user.name, role: user.role, canIssueReceipts: user.canIssueReceipts },
+    user: { id: user.id, name: user.name, mobile: user.mobile, role: user.role, canIssueReceipts: user.canIssueReceipts },
   };
 }
 
@@ -432,7 +432,7 @@ function presentReceipt(receipt, signaturePath) {
     time: receipt.repairTime,
     city: receipt.cityName,
     warrantyText: days === 0 ? "不保修" : days + "天",
-    warrantyExpire: receipt.warrantyExpireDate,
+    warrantyExpire: days === 0 ? "" : receipt.warrantyExpireDate,
     total: money(receipt.amount),
     customerName: receipt.customerName,
     serviceName: receipt.serviceName,

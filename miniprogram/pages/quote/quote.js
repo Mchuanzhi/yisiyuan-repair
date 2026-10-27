@@ -6,6 +6,7 @@ const initialFrame = layout.quoteFrame(375, 667);
 
 Page({
   data: {
+    banners: require("../../config/banners"),
     pageHeight: initialFrame.pageHeight,
     scrollHeight: initialFrame.scrollHeight,
     catalogMessage: "正在加载报价",
@@ -20,7 +21,7 @@ Page({
     extras: [],
     warrantyOptions: [],
     searchMounted: true,
-    collapsed: panels.collapsedPanels(panels.initialOpenPanels()),
+    collapsed: panels.collapsedPanels(["category", "service", "brand", "extra", "warranty", "quote"]),
     categoryCount: "",
     serviceTitle: "常用项目",
     resultCount: "",
@@ -85,7 +86,7 @@ Page({
   syncAccount() {
     const user = getApp().globalData.user;
     this.setData({
-      confirmText: user && user.canIssueReceipts ? "确认报价 · 签名" : "登录后签名开据",
+      confirmText: user && user.canIssueReceipts ? "确认报价 · 去签名" : "登录后签名开据",
     });
   },
 

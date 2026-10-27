@@ -402,16 +402,18 @@ function mockReceipt(body) {
   const repairTime = now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate()) + " " + pad(now.getHours()) + ":" + pad(now.getMinutes());
   const expire = new Date(now);
   expire.setDate(expire.getDate() + Number(body.warrantyDays || 0));
-  const expireText = expire.getFullYear() + "-" + pad(expire.getMonth() + 1) + "-" + pad(expire.getDate());
+  const expireText = Number(body.warrantyDays || 0) === 0 ? "" : expire.getFullYear() + "-" + pad(expire.getMonth() + 1) + "-" + pad(expire.getDate());
   const no = "YSY" + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + String(now.getTime()).slice(-5);
   const receipt = {
     no,
     createdByStaffId: user.id,
     customerName: String(body.customerName).trim(),
+    serviceId: quote.services.map((service) => service.id).join(","),
     serviceName: quote.services.map((service) => service.name).join("、"),
     brandName: quote.brand.name,
     cityName: quote.city.name,
     repairTime,
+    createdAt: now.toISOString(),
     warrantyDays: Number(body.warrantyDays || 0),
     warrantyExpireDate: expireText,
     amount: quote.total,
@@ -423,7 +425,7 @@ function mockReceipt(body) {
   };
   const all = wx.getStorageSync("mockReceipts") || [];
   all.unshift(receipt);
-  wx.setStorageSync("mockReceipts", all.slice(0, 50));
+  wx.setStorageSync("mockReceipts", all);
   return receipt;
 }
 

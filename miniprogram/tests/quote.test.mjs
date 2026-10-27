@@ -67,7 +67,7 @@ function assertStructure() {
   assert.equal(wxml.includes(":has("), false);
   assert.equal(read("pages/quote/quote.wxml").includes("我的"), false);
   assert.equal(read("pages/quote/quote.wxml").includes('class="mine"'), false);
-  assert.equal(read("pages/history/history.wxml").includes("我的"), false);
+  assert.match(read("pages/history/history.wxml"), /我的服务记录/);
   const navSources = ["pages/quote/quote.js", "pages/history/history.js", "pages/signature/signature.js", "pages/receipt/receipt.js", "pages/account/account.js"].map((file) => read(file)).join("\n");
   assert.equal(navSources.includes('navigateTo({ url: "/pages/account/account" })'), false);
   assert.equal(navSources.includes('redirectTo({ url: "/pages/account/account" })'), false);
@@ -79,10 +79,10 @@ function assertStructure() {
   assert.match(read("pages/quote/quote.wxml"), /<switch/);
   assert.match(read("pages/quote/quote.wxml"), /打开本地演示/);
   assert.match(read("pages/quote/quote.wxml"), /scrollHeight/);
-  assert.equal(read("pages/quote/quote.wxss").includes("height: 0"), false);
-  assert.equal(read("pages/history/history.wxss").includes("height: 0"), false);
+  assert.equal(read("pages/quote/quote.wxss").includes("\n  height: 0;"), false);
+  assert.equal(read("pages/history/history.wxss").includes("\n  height: 0;"), false);
   assert.match(read("pages/quote/quote.wxss"), /100vh/);
-  assert.match(read("pages/history/history.wxss"), /100vh/);
+  assert.match(read("pages/history/history.wxml"), /pageHeight/);
   assert.match(read("pages/signature/signature.wxml"), /type="2d"/);
   assert.match(read("pages/signature/signature.wxml"), /catchtouchstart/);
   assert.match(read("pages/signature/signature.js"), /pixelRatio/);
@@ -214,8 +214,8 @@ function assertUiScope() {
   assert.match(quoteWxml, /当前预估合计/);
   assert.match(quoteWxml, /dockTotal/);
   assert.match(quoteWxml, /bindtap="onConfirm"/);
-  assert.match(quoteJs, /确认报价 · 签名/);
-  assert.match(quoteJs, /collapsedPanels\(panels\.initialOpenPanels\(\)\)/);
+  assert.match(quoteJs, /确认报价 · 去签名/);
+  assert.match(quoteJs, /collapsedPanels\(\["category", "service", "brand", "extra", "warranty", "quote"\]\)/);
   for (const step of ["category", "service", "brand", "extra", "warranty", "search"]) {
     assert.match(quoteJs, new RegExp("expandPanels\\(\"" + step + "\""));
   }

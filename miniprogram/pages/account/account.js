@@ -11,6 +11,10 @@ Page({
     profileStatus: "游客可查价，开具收据需师傅账号授权",
     permission: "未登录",
     loggedIn: false,
+    avatarText: "壹",
+    maskedMobile: "未提供",
+    wechatBound: false,
+    canIssue: false,
     mobile: "",
     password: "",
     apiBase: "",
@@ -82,6 +86,10 @@ Page({
     } else if (state.wechatHint && !user) wechatLine = state.wechatHint;
     this.setData({
       loggedIn: Boolean(user),
+      avatarText: user && user.name ? user.name.slice(0, 1) : "壹",
+      maskedMobile: user && user.mobile ? user.mobile.replace(/^(\d{3})\d{4}(\d{4})$/, "$1 **** $2") : "未提供",
+      wechatBound: Boolean(user && user.wechatBound),
+      canIssue: Boolean(user && user.canIssueReceipts),
       profileName: user ? user.name : "欢迎使用壹思源",
       profileStatus: model.roleLabel(user),
       permission: model.permissionLabel(user),
@@ -151,6 +159,10 @@ Page({
       this._authLock = false;
       this.setData({ loggingIn: false });
     });
+  },
+
+  openHistory() {
+    wx.switchTab({ url: "/pages/history/history" });
   },
 
   onLogout() {

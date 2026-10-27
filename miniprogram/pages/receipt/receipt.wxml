@@ -19,7 +19,7 @@
       <view class="info-row"><text class="muted">维修时间</text><text>{{time}}</text></view>
       <view class="info-row"><text class="muted">服务城市</text><text>{{city}}</text></view>
       <view class="info-row"><text class="muted">保修期限</text><text>{{warrantyText}}</text></view>
-      <view class="info-row"><text class="muted">保修到期</text><text>{{warrantyExpire}}</text></view>
+      <view wx:if="{{warrantyExpire}}" class="info-row"><text class="muted">保修到期</text><text>{{warrantyExpire}}</text></view>
       <view class="info-row"><text class="muted">客户</text><text>{{customerName}}</text></view>
       <view class="info-row"><text class="muted">服务项目</text><text>{{serviceName}}</text></view>
       <view class="info-row"><text class="muted">维修品牌</text><text>{{brandName}}</text></view>

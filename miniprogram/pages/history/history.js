@@ -1,4 +1,5 @@
 const model = require("../../utils/model");
+const history = require("../../utils/history");
 const api = require("../../utils/api");
 const layout = require("../../utils/layout");
 const initialFrame = layout.pageFrame(375, 667);
@@ -6,6 +7,11 @@ const initialFrame = layout.pageFrame(375, 667);
 Page({
   data: {
     pageHeight: initialFrame.pageHeight,
+    query: "",
+    filter: "all",
+    filters: [{ id: "all", label: "全部" }, { id: "active", label: "保修中" }, { id: "expired", label: "已过保" }, { id: "none", label: "不保修" }],
+    monthAmount: "¥0.00",
+    monthCount: 0,
     items: [],
     countText: "0 条",
     subtitle: "",
@@ -43,6 +49,7 @@ Page({
       this.receipts = [];
       this.setData({
         items: [],
+        monthAmount: "¥0.00", monthCount: 0,
         countText: "0 条",
         subtitle: "登录后查看本人开具的收据",
         emptyText: "请先登录师傅账号",
@@ -53,29 +60,42 @@ Page({
     this.setData({ subtitle: user.name + " · 本人开具的收据", emptyText: "", needLogin: false });
     return api.refreshMe().catch(() => null).then(() => {
       if (!getApp().globalData.user) {
-        this.setData({ emptyText: "登录已失效，请重新登录", needLogin: true, items: [], countText: "0 条" });
+        this.receipts = [];
+        this.setData({ emptyText: "登录已失效，请重新登录", needLogin: true, items: [], countText: "0 条", monthAmount: "¥0.00", monthCount: 0 });
         return null;
       }
-      return api.listReceipts();
+      return Promise.all([api.listReceipts(), api.getCatalog().catch(() => ({}))]).then(([data, catalog]) => ({ receipts: history.withDevices(data.receipts || [], catalog) }));
     }).then((data) => {
       if (!data) return;
       this.receipts = data.receipts || [];
-      const items = this.receipts.map((item) => model.historyItem(item));
-      this.setData({
-        items,
-        countText: items.length + " 条",
-        emptyText: items.length ? "" : "暂无本人开具的收据",
-        needLogin: false,
-      });
+      this.renderHistory();
     }).catch((error) => {
       this.receipts = [];
       this.setData({
         items: [],
+        monthAmount: "¥0.00", monthCount: 0,
         countText: "0 条",
         emptyText: "加载失败：" + error.message,
         needLogin: error.status === 401,
       });
     });
+  },
+
+  renderHistory() {
+    const user = getApp().globalData.user;
+    this.setData(Object.assign(history.presentHistory(this.receipts || [], {
+      staffId: user && user.id, query: this.data.query, status: this.data.filter, now: new Date(),
+    }), { needLogin: false }));
+  },
+
+  onSearch(event) {
+    this.setData({ query: event.detail.value });
+    if (!this.data.needLogin) this.renderHistory();
+  },
+
+  onFilter(event) {
+    this.setData({ filter: event.currentTarget.dataset.id });
+    if (!this.data.needLogin) this.renderHistory();
   },
 
   openAccount() {
