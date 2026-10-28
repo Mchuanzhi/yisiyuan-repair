@@ -116,6 +116,9 @@ function assertMockMath() {
   assert.throws(() => model.calculateMock({ serviceIds: ["water-faucet"], brandId: "gree", cityId: "shanghai" }), /品牌不适用/);
 
   const catalog = model.normalizeCatalog(model.publicCatalog());
+  assert.ok(catalog.services.some((item) => item.categoryId === "cleaning"));
+  assert.ok(catalog.categories.some((item) => item.id === "general-basic"));
+  assert.ok(catalog.services.some((item) => item.categoryId === "general-basic"));
   assert.equal(catalog.categories.find((item) => item.id === "air").image, "/images/categories/air.png");
   assert.equal(model.categoryImage({ id: "air", image: "data:image/svg+xml,abc" }), "/images/categories/air.png");
   assert.equal(model.brandImage({ id: "gree", logo: "data:image/png;base64,aaaa" }), "/images/brands/gree.png");
@@ -139,6 +142,48 @@ function assertMockMath() {
   assert.ok(frame.scrollHeight < frame.pageHeight);
   assert.equal(layout.pageFrame(390, 700).pageHeight, 700);
   assert.equal(layout.quoteFrame(375, 800, 800).pageHeight, 750);
+}
+
+function assertGroupSelection() {
+  let quotePage;
+  const quotePagePath = require.resolve("../pages/quote/quote.js");
+  const previousPage = globalThis.Page;
+  globalThis.Page = (definition) => { quotePage = definition; };
+  delete require.cache[quotePagePath];
+  require(quotePagePath);
+  if (previousPage === undefined) delete globalThis.Page;
+  else globalThis.Page = previousPage;
+
+  const context = {
+    catalog: model.normalizeCatalog({
+      categories: [model.publicCatalog().categories.find((item) => item.id === "cleaning")],
+      services: [],
+      brands: [],
+      cities: [],
+      extras: [],
+    }),
+    selection: Object.assign(model.blankState(), { brandId: "other", serviceIds: ["stale"] }),
+    data: { collapsed: {} },
+    setData(update, callback) {
+      Object.assign(this.data, update);
+      if (callback) callback();
+    },
+    expandPanels() {},
+    remountSearch() {},
+    renderView() { this.rendered = true; },
+  };
+
+  quotePage.onGroup.call(context, { currentTarget: { dataset: { id: "cleaning" } } });
+  assert.equal(context.selection.categoryGroup, "cleaning");
+  assert.equal(context.selection.categoryId, "cleaning");
+  assert.deepEqual(context.selection.serviceIds, []);
+
+  quotePage.onGroup.call(context, { currentTarget: { dataset: { id: "general" } } });
+  assert.equal(context.selection.categoryGroup, "general");
+  assert.equal(context.selection.categoryId, "");
+  assert.deepEqual(context.selection.serviceIds, []);
+  assert.equal(context.selection.brandId, "");
+  assert.equal(context.rendered, true);
 }
 
 async function assertServerParity() {
@@ -282,6 +327,7 @@ function assertUiScope() {
 
 assertStructure();
 assertMockMath();
+assertGroupSelection();
 assertUiScope();
 await assertServerParity();
 console.log("miniprogram quote checks passed");

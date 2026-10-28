@@ -36,6 +36,7 @@ function mockDb() {
       { id: "kitchen", name: "厨电维修", count: 6, tone: "#7d5a3a", accent: "#d9861f", enabled: true },
       { id: "water", name: "水电管道", count: 7, tone: "#28666e", accent: "#51a3a3", enabled: true },
       { id: "cleaning", name: "清洗保养", count: 9, tone: "#2f8f68", accent: "#316fd1", enabled: true },
+      { id: "general-basic", name: "基础服务", count: 1, tone: "#5f6f6c", accent: "#84c7d8", enabled: true },
     ],
     brands: [
       { id: "gree", name: "格力", latin: "GREE", color: "#0b7f72", factor: 1.08, categoryIds: ["air"] },
@@ -43,7 +44,7 @@ function mockDb() {
       { id: "haier", name: "海尔", latin: "Haier", color: "#139ed9", factor: 1.04, categoryIds: ["air", "washer", "fridge", "heater"] },
       { id: "aux", name: "奥克斯", latin: "AUX", color: "#d12d33", factor: 1.03, categoryIds: ["air"] },
       { id: "siemens", name: "西门子", latin: "SIEMENS", color: "#08706f", factor: 1.12, categoryIds: ["washer", "fridge", "kitchen"] },
-      { id: "other", name: "其他品牌", latin: "OTHER", color: "#5f6f6c", factor: 1, categoryIds: ["air", "washer", "fridge", "heater", "kitchen", "water", "cleaning"] },
+      { id: "other", name: "其他品牌", latin: "OTHER", color: "#5f6f6c", factor: 1, categoryIds: ["air", "washer", "fridge", "heater", "kitchen", "water", "cleaning", "general-basic"] },
     ],
     cities: [
       { id: "shanghai", name: "上海", rate: "+10%", radius: "8公里", multiplier: 1.1, enabled: true },
@@ -55,6 +56,8 @@ function mockDb() {
       { id: "air-capacitor", categoryId: "air", name: "更换电容/传感器", desc: "启动电容、压缩机电容、温度传感器等", low: 90, high: 180, part: 65, warrantyDays: 90, includes: "拆装、检测、调试", excludes: "配件", enabled: true },
       { id: "air-basic", categoryId: "air", name: "挂机普通维修", desc: "漏水、异响、遥控异常、传感器异常等小修", low: 80, high: 160, part: 0, warrantyDays: 30, includes: "检测、人工调试", excludes: "配件、高空", enabled: true },
       { id: "water-faucet", categoryId: "water", name: "水龙头/角阀/软管更换", desc: "单点位检测、更换、接头处理", low: 50, high: 100, part: 35, warrantyDays: 30, includes: "人工", excludes: "材料", enabled: true },
+      { id: "cleaning-basic", categoryId: "cleaning", name: "家电深度清洗", desc: "清洗常见家电部件并进行基础保养", low: 120, high: 220, part: 0, warrantyDays: 30, includes: "上门检测、清洗保养", excludes: "更换配件", enabled: true },
+      { id: "general-basic-service", categoryId: "general-basic", name: "基础上门服务", desc: "基础检测与常见小项处理", low: 60, high: 120, part: 0, warrantyDays: 7, includes: "上门检测、人工服务", excludes: "材料和配件", enabled: true },
     ],
     extras: [
       { id: "remote", name: "远程费", price: "30-100元", scene: "超出约定服务半径", amount: 50, enabled: true },
@@ -236,8 +239,12 @@ function ensureSelection(catalog, state) {
   next.extraIds = (next.extraIds || []).slice();
   next.query = next.query || "";
   if (!catalog.categories.some((item) => item.id === next.categoryId)) {
-    const fallback = catalog.categories.find((category) => catalog.services.some((service) => service.categoryId === category.id));
-    next.categoryId = fallback ? fallback.id : (catalog.categories[0] ? catalog.categories[0].id : "");
+    const groupExists = categoryGroups.some((group) => group.id === next.categoryGroup);
+    const groupIsEmpty = groupExists && !categoriesInGroup(catalog, next.categoryGroup).length;
+    if (!groupIsEmpty) {
+      const fallback = catalog.categories.find((category) => catalog.services.some((service) => service.categoryId === category.id));
+      next.categoryId = fallback ? fallback.id : (catalog.categories[0] ? catalog.categories[0].id : "");
+    }
   }
   const selectedCategory = catalog.categories.find((item) => item.id === next.categoryId);
   if (selectedCategory) next.categoryGroup = groupForCategory(selectedCategory).id;
