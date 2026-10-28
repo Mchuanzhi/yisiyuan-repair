@@ -140,6 +140,7 @@ function addDays(date, days) {
 }
 
 function warrantyCountdown(expireDateText) {
+  if (!expireDateText) return { status: "none", text: "不保修", daysLeft: null };
   const expire = new Date(`${expireDateText}T23:59:59`);
   const daysLeft = Math.ceil((expire.getTime() - Date.now()) / 86400000);
   if (daysLeft < 0) return { status: "expired", text: `已过期 ${Math.abs(daysLeft)} 天`, daysLeft };
@@ -553,7 +554,7 @@ function writeDbRows(database, db) {
       receipt.cityId || "",
       receipt.cityName || "",
       receipt.repairTime || "",
-      Number(receipt.warrantyDays || 30),
+      Number(receipt.warrantyDays ?? 30),
       receipt.warrantyExpireDate || "",
       Number(receipt.amount || 0),
       encodeJson(receipt.lines || []),
@@ -1041,6 +1042,7 @@ function staffView(user) {
   return {
     id: user.id,
     name: user.name,
+    mobile: user.mobile || "",
     role: user.role,
     canIssueReceipts: canIssueReceipts(user),
     wechatBound: Boolean(user.wechatOpenid),
@@ -1371,7 +1373,8 @@ function calculateQuote(db, body) {
 function receiptView(receipt) {
   return {
     ...receipt,
-    warrantyCountdown: warrantyCountdown(receipt.warrantyExpireDate),
+    warrantyExpireDate: Number(receipt.warrantyDays) === 0 ? "" : receipt.warrantyExpireDate,
+    warrantyCountdown: warrantyCountdown(Number(receipt.warrantyDays) === 0 ? "" : receipt.warrantyExpireDate),
   };
 }
 
@@ -1872,7 +1875,7 @@ async function handle(req, res, serverOptions) {
       cityName: quote.city.name,
       repairTime: formatDateTime(now),
       warrantyDays,
-      warrantyExpireDate: formatDate(addDays(now, warrantyDays)),
+      warrantyExpireDate: warrantyDays === 0 ? "" : formatDate(addDays(now, warrantyDays)),
       amount: quote.total,
       lines: quote.rows,
       includes: [...new Set(quote.services.map(service => service.includes).filter(Boolean))].join("；"),

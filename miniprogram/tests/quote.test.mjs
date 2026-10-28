@@ -67,7 +67,7 @@ function assertStructure() {
   assert.equal(wxml.includes(":has("), false);
   assert.equal(read("pages/quote/quote.wxml").includes("我的"), false);
   assert.equal(read("pages/quote/quote.wxml").includes('class="mine"'), false);
-  assert.equal(read("pages/history/history.wxml").includes("我的"), false);
+  assert.match(read("pages/history/history.wxml"), /我的服务记录/);
   const navSources = ["pages/quote/quote.js", "pages/history/history.js", "pages/signature/signature.js", "pages/receipt/receipt.js", "pages/account/account.js"].map((file) => read(file)).join("\n");
   assert.equal(navSources.includes('navigateTo({ url: "/pages/account/account" })'), false);
   assert.equal(navSources.includes('redirectTo({ url: "/pages/account/account" })'), false);
@@ -79,10 +79,10 @@ function assertStructure() {
   assert.match(read("pages/quote/quote.wxml"), /<switch/);
   assert.match(read("pages/quote/quote.wxml"), /打开本地演示/);
   assert.match(read("pages/quote/quote.wxml"), /scrollHeight/);
-  assert.equal(read("pages/quote/quote.wxss").includes("height: 0"), false);
-  assert.equal(read("pages/history/history.wxss").includes("height: 0"), false);
+  assert.equal(read("pages/quote/quote.wxss").includes("\n  height: 0;"), false);
+  assert.equal(read("pages/history/history.wxss").includes("\n  height: 0;"), false);
   assert.match(read("pages/quote/quote.wxss"), /100vh/);
-  assert.match(read("pages/history/history.wxss"), /100vh/);
+  assert.match(read("pages/history/history.wxml"), /pageHeight/);
   assert.match(read("pages/signature/signature.wxml"), /type="2d"/);
   assert.match(read("pages/signature/signature.wxml"), /catchtouchstart/);
   assert.match(read("pages/signature/signature.js"), /pixelRatio/);
@@ -116,6 +116,9 @@ function assertMockMath() {
   assert.throws(() => model.calculateMock({ serviceIds: ["water-faucet"], brandId: "gree", cityId: "shanghai" }), /品牌不适用/);
 
   const catalog = model.normalizeCatalog(model.publicCatalog());
+  assert.ok(catalog.services.some((item) => item.categoryId === "cleaning"));
+  assert.ok(catalog.categories.some((item) => item.id === "general-basic"));
+  assert.ok(catalog.services.some((item) => item.categoryId === "general-basic"));
   assert.equal(catalog.categories.find((item) => item.id === "air").image, "/images/categories/air.png");
   assert.equal(model.categoryImage({ id: "air", image: "data:image/svg+xml,abc" }), "/images/categories/air.png");
   assert.equal(model.brandImage({ id: "gree", logo: "data:image/png;base64,aaaa" }), "/images/brands/gree.png");
@@ -139,6 +142,48 @@ function assertMockMath() {
   assert.ok(frame.scrollHeight < frame.pageHeight);
   assert.equal(layout.pageFrame(390, 700).pageHeight, 700);
   assert.equal(layout.quoteFrame(375, 800, 800).pageHeight, 750);
+}
+
+function assertGroupSelection() {
+  let quotePage;
+  const quotePagePath = require.resolve("../pages/quote/quote.js");
+  const previousPage = globalThis.Page;
+  globalThis.Page = (definition) => { quotePage = definition; };
+  delete require.cache[quotePagePath];
+  require(quotePagePath);
+  if (previousPage === undefined) delete globalThis.Page;
+  else globalThis.Page = previousPage;
+
+  const context = {
+    catalog: model.normalizeCatalog({
+      categories: [model.publicCatalog().categories.find((item) => item.id === "cleaning")],
+      services: [],
+      brands: [],
+      cities: [],
+      extras: [],
+    }),
+    selection: Object.assign(model.blankState(), { brandId: "other", serviceIds: ["stale"] }),
+    data: { collapsed: {} },
+    setData(update, callback) {
+      Object.assign(this.data, update);
+      if (callback) callback();
+    },
+    expandPanels() {},
+    remountSearch() {},
+    renderView() { this.rendered = true; },
+  };
+
+  quotePage.onGroup.call(context, { currentTarget: { dataset: { id: "cleaning" } } });
+  assert.equal(context.selection.categoryGroup, "cleaning");
+  assert.equal(context.selection.categoryId, "cleaning");
+  assert.deepEqual(context.selection.serviceIds, []);
+
+  quotePage.onGroup.call(context, { currentTarget: { dataset: { id: "general" } } });
+  assert.equal(context.selection.categoryGroup, "general");
+  assert.equal(context.selection.categoryId, "");
+  assert.deepEqual(context.selection.serviceIds, []);
+  assert.equal(context.selection.brandId, "");
+  assert.equal(context.rendered, true);
 }
 
 async function assertServerParity() {
@@ -214,8 +259,8 @@ function assertUiScope() {
   assert.match(quoteWxml, /当前预估合计/);
   assert.match(quoteWxml, /dockTotal/);
   assert.match(quoteWxml, /bindtap="onConfirm"/);
-  assert.match(quoteJs, /确认报价 · 签名/);
-  assert.match(quoteJs, /collapsedPanels\(panels\.initialOpenPanels\(\)\)/);
+  assert.match(quoteJs, /确认报价 · 去签名/);
+  assert.match(quoteJs, /collapsedPanels\(\["category", "service", "brand", "extra", "warranty", "quote"\]\)/);
   for (const step of ["category", "service", "brand", "extra", "warranty", "search"]) {
     assert.match(quoteJs, new RegExp("expandPanels\\(\"" + step + "\""));
   }
@@ -282,6 +327,7 @@ function assertUiScope() {
 
 assertStructure();
 assertMockMath();
+assertGroupSelection();
 assertUiScope();
 await assertServerParity();
 console.log("miniprogram quote checks passed");

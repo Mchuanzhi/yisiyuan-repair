@@ -1,6 +1,6 @@
 {
-  "navigationBarTitleText": "壹思源维修报价",
-  "navigationBarBackgroundColor": "#EAF6FF",
+  "navigationBarTitleText": "维修查价",
+  "navigationBarBackgroundColor": "#FFFFFF",
   "enablePullDownRefresh": true,
-  "backgroundColor": "#F4F4FA"
+  "backgroundColor": "#F5F7FB"
 }

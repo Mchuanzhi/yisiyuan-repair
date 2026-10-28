@@ -1,19 +1,4 @@
-<view class="page" style="height: {{pageHeight}}px;">
-  <view class="topbar">
-    <view class="brand">
-      <text class="eyebrow">壹思源 · 师傅工作台</text>
-      <text class="tagline">透明报价 · 安心维修</text>
-    </view>
-    <view class="top-actions">
-      <picker wx:if="{{cities.length}}" mode="selector" range="{{cities}}" range-key="name" value="{{cityIndex}}" bindchange="onCityChange">
-        <view class="city-picker">
-          <text class="city-label">城市</text>
-          <text class="city-value">{{cityName}}</text>
-        </view>
-      </picker>
-    </view>
-  </view>
-
+<view class="page quote-page" style="height: {{pageHeight}}px;">
   <scroll-view class="scroll" style="height: {{scrollHeight}}px;" scroll-y show-scrollbar="{{false}}">
     <view class="status">
       <text class="status-text">{{catalogMessage}}</text>
@@ -21,21 +6,17 @@
       <button wx:else class="refresh" bindtap="onRefresh">刷新数据</button>
     </view>
 
-    <view class="welcome">
-      <view class="welcome-copy">
-        <text class="welcome-label">REPAIR & CARE</text>
-        <text class="welcome-title">每一份报价</text>
-        <text class="welcome-title">都清楚明白</text>
-        <text class="welcome-sub">选项目 · 确认费用 · 签名留凭证</text>
-      </view>
-      <view class="hero">
-        <view class="hero-doc">
-          <view class="hero-bar hero-bar-short"></view>
-          <view class="hero-bar"></view>
-          <view class="hero-bar hero-bar-mid"></view>
-          <view class="hero-check">✓</view>
-        </view>
-      </view>
+    <view class="banner-wrap">
+      <swiper class="banner-swiper" indicator-dots="{{banners.length > 1}}" autoplay="{{banners.length > 1}}" circular>
+        <swiper-item wx:for="{{banners}}" wx:key="id">
+          <view class="quote-banner {{item.theme}}">
+            <view class="banner-top"><text>壹思源维修 · 师傅报价工具</text>
+              <picker mode="selector" range="{{cities}}" range-key="name" value="{{cityIndex}}" bindchange="onCityChange"><view class="banner-city">{{cityName}}⌄</view></picker>
+            </view>
+            <text class="banner-title">{{item.title}}</text><text class="banner-subtitle">{{item.subtitle}}</text>
+          </view>
+        </swiper-item>
+      </swiper>
     </view>
 
     <view class="sheet">
@@ -81,61 +62,65 @@
               <view class="service-main">
                 <text class="service-name">{{item.name}}</text>
                 <text class="service-desc">{{item.desc}}</text>
-                <text class="service-price">{{item.priceText}}</text>
-                <text class="pill">{{item.warranty}}</text>
+
               </view>
+              <text class="service-price">{{item.priceText}}</text>
+            </view>
+          </view>
+          <text class="service-hint">{{warrantySummary === "不保修" ? "本单不保修" : "本单保修 " + warrantySummary}}</text>
+        </view>
+      </view>
+
+      <view class="config-card">
+        <view class="panel">
+          <view class="section-toggle" data-key="brand" bindtap="togglePanel">
+            <text class="section-title">品牌</text>
+            <text class="section-meta">{{brandCount}}</text>
+            <view class="chevron {{collapsed.brand ? 'is-collapsed' : ''}}"></view>
+          </view>
+          <view hidden="{{collapsed.brand}}" class="brand-grid">
+            <view wx:for="{{brands}}" wx:key="id" class="brand-card {{item.active ? 'is-active' : ''}}" data-id="{{item.id}}" bindtap="onBrand">
+              <image class="brand-image" src="{{item.image}}" mode="aspectFit" />
+              <text class="brand-name">{{item.name}}</text>
+              <text class="brand-factor">{{item.priceLabel}}</text>
             </view>
           </view>
         </view>
-      </view>
 
-      <view class="panel">
-        <view class="section-toggle" data-key="brand" bindtap="togglePanel">
-          <text class="section-title">品牌</text>
-          <text class="section-meta">{{brandCount}}</text>
-          <view class="chevron {{collapsed.brand ? 'is-collapsed' : ''}}"></view>
-        </view>
-        <view hidden="{{collapsed.brand}}" class="brand-grid">
-          <view wx:for="{{brands}}" wx:key="id" class="brand-card {{item.active ? 'is-active' : ''}}" data-id="{{item.id}}" bindtap="onBrand">
-            <image class="brand-image" src="{{item.image}}" mode="aspectFit" />
-            <text class="brand-name">{{item.name}}</text>
-            <text class="brand-factor">{{item.priceLabel}}</text>
+        <view class="panel">
+          <view class="section-toggle" data-key="extra" bindtap="togglePanel">
+            <text class="section-title">特殊费用</text>
+            <text class="section-meta">按现场勾选</text>
+            <view class="chevron {{collapsed.extra ? 'is-collapsed' : ''}}"></view>
           </view>
-        </view>
-      </view>
-
-      <view class="panel">
-        <view class="section-toggle" data-key="extra" bindtap="togglePanel">
-          <text class="section-title">特殊费用</text>
-          <text class="section-meta">按现场勾选</text>
-          <view class="chevron {{collapsed.extra ? 'is-collapsed' : ''}}"></view>
-        </view>
-        <view hidden="{{collapsed.extra}}" class="extra-list">
-          <view wx:for="{{extras}}" wx:key="id" class="extra-item {{item.on ? 'is-on' : ''}}">
-            <view class="extra-copy">
-              <text class="extra-name">{{item.name}}</text>
-              <text class="extra-price">{{item.priceLabel}}</text>
+          <view hidden="{{collapsed.extra}}" class="extra-list">
+            <view wx:for="{{extras}}" wx:key="id" class="extra-item {{item.on ? 'is-on' : ''}}">
+              <view class="extra-copy">
+                <text class="extra-name">{{item.name}}</text>
+                <text class="extra-price">{{item.priceLabel}}</text>
+              </view>
+              <switch checked="{{item.on}}" color="#4263FF" data-id="{{item.id}}" bindchange="onExtra" />
             </view>
-            <switch checked="{{item.on}}" color="#4263FF" data-id="{{item.id}}" bindchange="onExtra" />
           </view>
         </view>
-      </view>
 
-      <view class="panel">
-        <view class="section-toggle" data-key="warranty" bindtap="togglePanel">
-          <text class="section-title">保修设置</text>
-          <text class="section-meta">{{warrantySummary}}</text>
-          <view class="chevron {{collapsed.warranty ? 'is-collapsed' : ''}}"></view>
+        <view class="panel">
+          <view class="section-toggle" data-key="warranty" bindtap="togglePanel">
+            <text class="section-title">保修设置</text>
+            <text class="section-meta">{{warrantySummary}}</text>
+            <view class="chevron {{collapsed.warranty ? 'is-collapsed' : ''}}"></view>
+          </view>
+          <view hidden="{{collapsed.warranty}}" class="warranty-options">
+            <view wx:for="{{warrantyOptions}}" wx:key="days" class="warranty-option {{item.days === 0 ? 'no-warranty' : ''}} {{item.active ? 'is-active' : ''}}" data-days="{{item.days}}" bindtap="onWarranty">{{item.label}}</view>
+          </view>
         </view>
-        <view hidden="{{collapsed.warranty}}" class="warranty-options">
-          <view wx:for="{{warrantyOptions}}" wx:key="days" class="warranty-option {{item.active ? 'is-active' : ''}}" data-days="{{item.days}}" bindtap="onWarranty">{{item.label}}</view>
-        </view>
+
       </view>
 
       <view class="quote-card">
         <view class="section-toggle" data-key="quote" bindtap="togglePanel">
-          <text class="section-title">当前报价单</text>
-          <text class="section-meta">同页实时更新</text>
+          <text class="section-title">报价明细</text>
+          <text class="section-meta">待客户确认</text>
           <view class="chevron {{collapsed.quote ? 'is-collapsed' : ''}}"></view>
         </view>
         <view hidden="{{collapsed.quote}}">
@@ -153,10 +138,6 @@
               <text class="muted">{{quoteCity}}</text>
             </view>
           </view>
-          <view class="price-total">
-            <text>合计</text>
-            <text class="price-total-value">{{quoteTotal}}</text>
-          </view>
           <view class="breakdown">
             <text wx:if="{{quoteStatus}}" class="muted">{{quoteStatus}}</text>
             <view wx:for="{{rows}}" wx:key="label" class="breakdown-row">
@@ -168,6 +149,10 @@
             <view class="meta-row"><text class="muted">包含内容</text><text>{{includes}}</text></view>
             <view class="meta-row"><text class="muted">不含/另计</text><text>{{excludes}}</text></view>
             <view class="meta-row"><text class="muted">质保</text><text>{{quoteWarranty}}</text></view>
+          </view>
+          <view class="price-total">
+            <text>合计</text>
+            <text class="price-total-value">{{quoteTotal}}</text>
           </view>
         </view>
       </view>

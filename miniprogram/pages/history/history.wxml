@@ -1,28 +1,17 @@
-<view class="page" style="height: {{pageHeight}}px;">
+<view class="history-page" style="height: {{pageHeight}}px;">
   <scroll-view class="scroll" style="height: {{pageHeight}}px;" scroll-y>
-    <view class="head">
-      <text class="count">{{countText}}</text>
-      <text class="muted">{{subtitle}}</text>
+    <view class="intro"><view><text class="muted">每一次服务，都有据可查</text><text class="title">我的服务记录</text></view><text class="count">{{countText}}</text></view>
+    <view class="stats"><view><text class="muted">本月开据金额</text><text class="stat-value">{{monthAmount}}</text></view><view class="stat-count"><text class="muted">本月服务</text><text class="stat-value">{{monthCount}} 笔</text></view></view>
+    <input class="search" value="{{query}}" bindinput="onSearch" confirm-type="search" placeholder="搜索客户、设备、项目或收据编号" />
+    <view class="filters"><view wx:for="{{filters}}" wx:key="id" class="filter {{filter === item.id ? 'selected' : ''}}" data-id="{{item.id}}" bindtap="onFilter">{{item.label}}</view></view>
+    <view wx:if="{{emptyText}}" class="empty"><text>{{emptyText}}</text><button wx:if="{{needLogin}}" class="primary login" bindtap="openAccount">去登录</button></view>
+    <view wx:for="{{items}}" wx:key="no" class="record" data-no="{{item.no}}" bindtap="onOpen">
+      <view class="row"><text class="name">{{item.customerName}}</text><text class="badge {{item.warrantyStatus}}">{{item.warrantyText}}</text></view>
+      <view class="row device-row"><view class="device-copy"><text class="device">{{item.device}}</text><text class="service">{{item.serviceName}}</text></view><text class="amount">{{item.amountText}}</text></view>
+      <view class="row meta"><text>{{item.repairTime}}</text><text>{{item.no}}</text></view>
+      <view class="row foot"><text>{{item.warrantyDetail}}</text><text class="link">查看收据 ›</text></view>
+      <text wx:if="{{item.statusText === '已作废'}}" class="muted">已作废</text>
     </view>
-    <view wx:if="{{emptyText}}" class="empty">
-      <text>{{emptyText}}</text>
-      <button wx:if="{{needLogin}}" class="primary login" bindtap="openAccount">去登录</button>
-    </view>
-    <view wx:else>
-      <view wx:for="{{items}}" wx:key="no" class="card" data-no="{{item.no}}" bindtap="onOpen">
-        <view class="row">
-          <text class="name">{{item.customerName}}</text>
-          <text class="time">{{item.repairTime}}</text>
-        </view>
-        <view class="row">
-          <text class="service">{{item.serviceName}}</text>
-          <text class="amount">{{item.amountText}}</text>
-        </view>
-        <view class="row">
-          <text class="no">{{item.no}}</text>
-          <text class="status">{{item.statusText}}</text>
-        </view>
-      </view>
-    </view>
+    <text wx:if="{{!needLogin}}" class="end-note">{{subtitle}}</text>
   </scroll-view>
 </view>

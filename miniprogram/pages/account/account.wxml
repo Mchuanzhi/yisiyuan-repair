@@ -1,14 +1,26 @@
-<scroll-view class="page" style="height: {{pageHeight}}px; min-height: {{pageHeight}}px;" scroll-y>
+<scroll-view class="page account-page" style="height: {{pageHeight}}px; min-height: {{pageHeight}}px;" scroll-y>
   <view class="profile" bindtap="onProfileTap" bindlongpress="onProfileLongPress">
-    <view class="avatar">壹</view>
-    <text class="profile-name">{{profileName}}</text>
-    <text class="muted">{{profileStatus}}</text>
+    <view class="avatar">{{avatarText}}</view>
+    <view class="profile-copy"><text class="profile-name">{{profileName}}</text><text class="muted">{{profileStatus}}</text><text wx:if="{{loggedIn}}" class="online">● 已登录</text></view>
   </view>
 
-  <view class="card">
-    <text class="card-title">开具收据权限</text>
+  <view class="permission-card">
+    <text class="permission-label">开具收据权限</text>
     <text class="permission">{{permission}}</text>
-    <text class="muted">{{wechatLine}}</text>
+    <text class="permission-help">{{canIssue ? '报价确认后，支持客户签名并生成电子收据。' : '开据权限由管理员统一管理。'}}</text>
+    <text wx:if="{{canIssue}}" class="verified">已授权 ✓</text>
+  </view>
+  <view wx:if="{{loggedIn}}">
+    <text class="section-title">账号信息</text>
+    <view class="card account-list">
+      <view class="info-row"><text>账号角色</text><text class="info-value">{{profileStatus}}</text></view>
+      <view class="info-row"><text>登录手机号</text><text class="info-value">{{maskedMobile}}</text></view>
+      <view class="info-row"><text>微信绑定</text><text class="info-value {{wechatBound ? 'online' : ''}}">{{wechatBound ? '已绑定 ✓' : '未绑定'}}</text></view>
+      <view class="info-row"><text>所属服务</text><text class="info-value">壹思源维修</text></view>
+    </view>
+    <text class="wechat-tip">{{wechatBound ? '已绑定微信，下次打开可快捷登录。' : '可通过微信登录绑定已有师傅账号。'}} 开据权限由管理员统一管理。</text>
+    <text class="section-title">服务记录</text>
+    <view class="card history-link" bindtap="openHistory"><view><text class="card-title">我开具的收据</text><text class="muted">查看客户签名与维修明细</text></view><text>›</text></view>
   </view>
 
   <view class="card" hidden="{{loggedIn}}">
@@ -23,6 +35,7 @@
   </view>
 
   <button wx:if="{{loggedIn}}" class="secondary logout" bindtap="onLogout">退出登录</button>
+  <text wx:if="{{loggedIn}}" class="end-note">退出后仍可查价，开据时需重新登录</text>
 
   <view hidden="{{!showDebug}}">
   <view class="card">
@@ -51,4 +64,5 @@
   </view>
   </view>
   <text class="message">{{message}}</text>
+  <view class="brand-footer"><text>壹思源维修</text><text class="muted">透明报价 · 安心维修</text></view>
 </scroll-view>

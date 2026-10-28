@@ -141,6 +141,14 @@ async function main() {
     assert.equal(created.payload.receipt.claimStatus, "待关注登录");
     assert.equal(created.payload.receipt.warrantyDays, 90);
     assert.match(created.payload.receipt.serviceName, /更换电容\/传感器、挂机普通维修/);
+    // Zero-day receipts must not acquire a same-day expiry.
+    const zeroWarranty = await request(baseUrl, "POST", "/api/staff/receipts", {
+      token: staffToken, body: { ...receiptBody, warrantyDays: 0 },
+    });
+    assert.equal(zeroWarranty.status, 201);
+    assert.equal(zeroWarranty.payload.receipt.warrantyDays, 0);
+    assert.equal(zeroWarranty.payload.receipt.warrantyExpireDate, "");
+    assert.equal(zeroWarranty.payload.receipt.warrantyCountdown.status, "none");
     const scene = created.payload.receipt.scene;
     assert.equal((await request(baseUrl, "PATCH", permissionUrl, { token: permissionToken, body: { canIssueReceipts: false } })).status, 200);
     assert.equal((await request(baseUrl, "POST", "/api/staff/receipts", { token: staffToken, body: receiptBody })).status, 403);
@@ -224,7 +232,11 @@ async function main() {
     const persistedServices = (await request(baseUrl, "GET", "/api/admin/services", { token: adminToken })).payload.services;
     for (const result of concurrent) { assert.equal(result.status, 201); assert.ok(persistedServices.some(item => item.id === result.payload.service.id)); }
     const ownerHistory = await request(baseUrl, "GET", "/api/staff/receipts", { token: staffToken });
-    assert.equal(ownerHistory.payload.receipts.length, 1);
+    assert.equal(ownerHistory.payload.receipts.length, 2);
+    const storedZeroWarranty = ownerHistory.payload.receipts.find(item => item.no === zeroWarranty.payload.receipt.no);
+    assert.equal(storedZeroWarranty.warrantyDays, 0);
+    assert.equal(storedZeroWarranty.warrantyExpireDate, "");
+    assert.equal(storedZeroWarranty.warrantyCountdown.status, "none");
     assert.equal((await request(baseUrl, "GET", "/api/staff/receipts", { token: adminToken })).payload.receipts.length, 0);
     assert.equal((await request(baseUrl, "GET", "/api/staff/receipts")).status, 401);
     await request(baseUrl, "PATCH", `/api/admin/services/${syncedId}`, { token: adminToken, body: { enabled: false } });
@@ -236,7 +248,9 @@ async function main() {
       token: adminToken,
     });
     assert.equal(adminReceipts.status, 200);
-    assert.equal(adminReceipts.payload.receipts[0].claimStatus, "已登录领取");
+    const claimedReceipt = adminReceipts.payload.receipts.find(item => item.no === created.payload.receipt.no);
+    assert.ok(claimedReceipt, "管理员列表应包含原来被领取的收据");
+    assert.equal(claimedReceipt.claimStatus, "已登录领取");
 
     const permissions = await request(baseUrl, "GET", "/api/admin/permissions", {
       token: adminToken,
