@@ -3,6 +3,9 @@ const api = require("../../utils/api");
 const layout = require("../../utils/layout");
 const debugAccess = require("../../utils/debug-access");
 const initialFrame = layout.pageFrame(375, 667);
+// Longer than wx.login (10s) plus wx.request (15s). If those callbacks never
+// fire, the lock still clears and the next tap can start a new attempt.
+const AUTH_LOCK_MS = 30000;
 
 Page({
   data: {
@@ -21,6 +24,7 @@ Page({
     useMock: false,
     loggingIn: false,
     message: "",
+    authAnchor: "",
     wechatLine: "进入后会尝试微信登录。还没有 AppID 时请用手机号和密码。",
     loginLabel: "登录",
     showDebug: debugAccess.showDebugSettings(debugAccess.readEnvVersion(), false),
@@ -29,6 +33,9 @@ Page({
   onLoad() {
     this.debugUnlocked = false;
     this._authLock = false;
+    this._authLockAt = 0;
+    this._authGen = 0;
+    this._authTimer = 0;
     this.applyLayout();
     this.refreshDebug();
   },
@@ -36,10 +43,15 @@ Page({
   onShow() {
     this.applyLayout();
     this.refreshDebug();
+    if (this.releaseStuckAuth()) this.showAuthNotice("上次登录没有完成，请再试一次");
     const state = getApp().globalData;
     this.setData({ apiBase: state.apiBase, useMock: state.useMock });
     const ready = state.sessionReady || Promise.resolve();
     ready.then(() => (state.token ? api.refreshMe().catch(() => null) : null)).then(() => this.renderUser());
+  },
+
+  onUnload() {
+    this.clearAuthTimer();
   },
 
   refreshDebug() {
@@ -115,50 +127,144 @@ Page({
     this.setData({ useMock: Boolean(event.detail.value) });
   },
 
-  onLogin() {
-    if (this._authLock || this.data.loggingIn) return;
-    const state = getApp().globalData;
-    const binding = !state.useMock && Boolean(api.currentBindTicket());
-    this._authLock = true;
-    this.setData({ loggingIn: true, message: "" });
-    api.loginWithPassword(this.data.mobile, this.data.password).then((result) => {
-      const allowed = result.user && result.user.canIssueReceipts;
-      let message = allowed ? "登录成功，可以返回查价报价开具收据。" : "登录成功。开据权限需由管理员开通。";
-      if (binding) message = allowed ? "已绑定微信，可以返回查价报价开具收据。" : "已绑定微信。开据权限需由管理员开通，微信绑定不会自动开通。";
-      this.setData({ password: "", message });
-      this.renderUser();
-    }).catch((error) => {
-      this.setData({ message: error.message || "登录失败" });
-      this.renderUser();
-    }).then(() => {
-      this._authLock = false;
-      this.setData({ loggingIn: false });
+  authInFlight() {
+    if (!this._authLock && !this.data.loggingIn) return false;
+    const started = this._authLockAt || 0;
+    if (!started) return false;
+    return Date.now() - started < AUTH_LOCK_MS;
+  },
+
+  clearAuthTimer() {
+    if (!this._authTimer) return;
+    clearTimeout(this._authTimer);
+    this._authTimer = 0;
+  },
+
+  releaseStuckAuth() {
+    if (this.authInFlight()) return false;
+    if (!this._authLock && !this.data.loggingIn) return false;
+    this.clearAuthTimer();
+    this._authGen = (this._authGen || 0) + 1;
+    this._authLock = false;
+    this._authLockAt = 0;
+    if (this.data.loggingIn) this.setData({ loggingIn: false });
+    return true;
+  },
+
+  showAuthNotice(text) {
+    const message = String(text || "");
+    this.setData({ message, authAnchor: "" }, () => {
+      if (message) this.setData({ authAnchor: "authMessage" });
     });
+    if (!message || typeof wx === "undefined" || typeof wx.showToast !== "function") return;
+    try {
+      wx.showToast({ title: message, icon: "none", duration: 2500 });
+    } catch (error) {}
+  },
+
+  beginAuth(progress) {
+    if (!this.releaseStuckAuth() && (this._authLock || this.data.loggingIn)) {
+      this.showAuthNotice("正在登录，请稍候");
+      return 0;
+    }
+    this._authGen = (this._authGen || 0) + 1;
+    const gen = this._authGen;
+    this._authLock = true;
+    this._authLockAt = Date.now();
+    this.clearAuthTimer();
+    this._authTimer = setTimeout(() => this.onAuthTimeout(gen), AUTH_LOCK_MS);
+    this.setData({ loggingIn: true });
+    if (progress) this.showAuthNotice(progress);
+    return gen;
+  },
+
+  onAuthTimeout(gen) {
+    if (gen !== this._authGen) return;
+    this.clearAuthTimer();
+    this._authGen += 1;
+    this._authLock = false;
+    this._authLockAt = 0;
+    this.setData({ loggingIn: false });
+    this.showAuthNotice("登录超时，请再试一次");
+  },
+
+  finishAuth(gen) {
+    if (gen !== this._authGen) return;
+    this.clearAuthTimer();
+    this._authLock = false;
+    this._authLockAt = 0;
+    if (this.data.loggingIn) this.setData({ loggingIn: false });
+  },
+
+  settleAuth(gen, task, onResult, failureText) {
+    Promise.resolve(task).then((result) => {
+      if (gen !== this._authGen) return;
+      try {
+        onResult(result);
+      } catch (error) {
+        this.showAuthNotice((error && error.message) || "登录结果无法显示，请再试一次");
+      }
+    }, (error) => {
+      if (gen !== this._authGen) return;
+      this.showAuthNotice((error && error.message) || failureText || "登录失败");
+      try {
+        this.renderUser();
+      } catch (renderError) {}
+    }).then(() => this.finishAuth(gen), () => this.finishAuth(gen));
+  },
+
+  onLogin() {
+    const mobile = String(this.data.mobile || "").trim();
+    const password = this.data.password == null ? "" : String(this.data.password);
+    if (!mobile || !String(password).trim()) {
+      if (this.authInFlight()) {
+        this.showAuthNotice("正在登录，请稍候");
+        return;
+      }
+      this.releaseStuckAuth();
+      this.showAuthNotice("请填写手机号和密码");
+      return;
+    }
+    const gen = this.beginAuth("正在登录…");
+    if (!gen) return;
+    try {
+      const state = getApp().globalData;
+      const binding = !state.useMock && Boolean(api.currentBindTicket());
+      this.settleAuth(gen, api.loginWithPassword(this.data.mobile, this.data.password), (result) => {
+        const allowed = result.user && result.user.canIssueReceipts;
+        let message = allowed ? "登录成功，可以返回查价报价开具收据。" : "登录成功。开据权限需由管理员开通。";
+        if (binding) message = allowed ? "已绑定微信，可以返回查价报价开具收据。" : "已绑定微信。开据权限需由管理员开通，微信绑定不会自动开通。";
+        this.setData({ password: "" });
+        this.showAuthNotice(message);
+        this.renderUser();
+      });
+    } catch (error) {
+      this.showAuthNotice((error && error.message) || "登录失败");
+      this.finishAuth(gen);
+    }
   },
 
   onWechat() {
-    if (this._authLock || this.data.loggingIn) return;
-    this._authLock = true;
-    this.setData({ loggingIn: true, message: "正在通过微信登录…" });
-    api.enterWithWechat({ force: true }).then((result) => {
-      if (result && result.bound) {
-        const allowed = result.user && result.user.canIssueReceipts;
-        this.setData({ message: allowed ? "微信登录成功，可以返回查价报价开具收据。" : "微信登录成功。开据权限需由管理员开通。" });
-      } else if (result && result.bindTicket) {
-        this.setData({ message: "该微信尚未绑定师傅账号，请填写手机号和密码完成首次绑定。绑定不会自动开通开据权限。" });
-      } else if (result && result.mock) {
-        this.setData({ message: "本地演示不调用微信。请用手机号和密码登录。" });
-      } else {
-        this.setData({ message: "请使用微信登录，或填写手机号和密码。" });
-      }
-      this.renderUser();
-    }).catch((error) => {
-      this.setData({ message: error.message || "微信登录失败，请改用手机号和密码" });
-      this.renderUser();
-    }).then(() => {
-      this._authLock = false;
-      this.setData({ loggingIn: false });
-    });
+    const gen = this.beginAuth("正在通过微信登录…");
+    if (!gen) return;
+    try {
+      this.settleAuth(gen, api.enterWithWechat({ force: true }), (result) => {
+        let message = "请使用微信登录，或填写手机号和密码。";
+        if (result && result.bound) {
+          const allowed = result.user && result.user.canIssueReceipts;
+          message = allowed ? "微信登录成功，可以返回查价报价开具收据。" : "微信登录成功。开据权限需由管理员开通。";
+        } else if (result && result.bindTicket) {
+          message = "该微信尚未绑定师傅账号，请填写手机号和密码完成首次绑定。绑定不会自动开通开据权限。";
+        } else if (result && result.mock) {
+          message = "本地演示不调用微信。请用手机号和密码登录。";
+        }
+        this.showAuthNotice(message);
+        this.renderUser();
+      }, "微信登录失败，请改用手机号和密码");
+    } catch (error) {
+      this.showAuthNotice((error && error.message) || "微信登录失败，请改用手机号和密码");
+      this.finishAuth(gen);
+    }
   },
 
   openHistory() {

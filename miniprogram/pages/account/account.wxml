@@ -1,4 +1,4 @@
-<scroll-view class="page account-page" style="height: {{pageHeight}}px; min-height: {{pageHeight}}px;" scroll-y>
+<scroll-view class="page account-page" style="height: {{pageHeight}}px; min-height: {{pageHeight}}px;" scroll-y scroll-into-view="{{authAnchor}}" scroll-with-animation>
   <view class="profile" bindtap="onProfileTap" bindlongpress="onProfileLongPress">
     <view class="avatar">{{avatarText}}</view>
     <view class="profile-copy"><text class="profile-name">{{profileName}}</text><text class="muted">{{profileStatus}}</text><text wx:if="{{loggedIn}}" class="online">● 已登录</text></view>
@@ -26,12 +26,14 @@
   <view class="card" hidden="{{loggedIn}}">
     <text class="card-title">师傅登录</text>
     <text class="muted">首次使用请用已有手机号和密码绑定微信。之后优先微信登录。微信登录不会自动开通开据权限。</text>
-    <button wx:if="{{!useMock}}" class="secondary wechat-login" disabled="{{loggingIn}}" bindtap="onWechat">微信登录</button>
+    <text id="authMessage" wx:if="{{message}}" class="auth-message">{{message}}</text>
+    <!-- loggingIn must not set disabled: a disabled button never fires bindtap, so a stuck lock stays silent. -->
+    <button wx:if="{{!useMock}}" class="secondary wechat-login {{loggingIn ? 'is-busy' : ''}}" bindtap="onWechat">微信登录</button>
     <text class="label">手机号</text>
     <input class="input" type="number" maxlength="11" value="{{mobile}}" bindinput="onMobile" />
     <text class="label">密码</text>
     <input class="input" password value="{{password}}" bindinput="onPassword" />
-    <button class="primary" disabled="{{loggingIn}}" bindtap="onLogin">{{loginLabel}}</button>
+    <button class="primary {{loggingIn ? 'is-busy' : ''}}" bindtap="onLogin">{{loginLabel}}</button>
   </view>
 
   <button wx:if="{{loggedIn}}" class="secondary logout" bindtap="onLogout">退出登录</button>
